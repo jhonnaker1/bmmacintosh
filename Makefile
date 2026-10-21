@@ -1,5 +1,5 @@
 #
-# Makefile for the BMApple2 kernel image.
+# Makefile for the BMAtariST kernel image.
 #
 # Run ./make_all.sh once first; it builds circle-stdlib and then this.
 # After that "make" rebuilds the kernel image for the board circle-stdlib is
@@ -20,8 +20,8 @@ include third_party/circle-stdlib/Config.mk
 # pick the board's display and sound code.
 include $(CIRCLEHOME)/Config.mk
 
-BMAPPLE2_VERSION ?= $(shell tools/version.sh --semver)
-BMAPPLE2_GIT ?= $(shell tools/version.sh --git)
+BMATARIST_VERSION ?= $(shell tools/version.sh --semver)
+BMATARIST_GIT ?= $(shell tools/version.sh --git)
 KEGS := third_party/kegs/src
 KEGS_VERSION := $(shell sed -n 's/.*g_kegs_version_str\[\] = "\(.*\)";.*/\1/p' $(KEGS)/sim65816.c)
 
@@ -73,8 +73,8 @@ INCLUDE := $(CIRCLE_STDLIB_INCLUDES) $(INCLUDE) -I $(CIRCLEHOME)/addon/fatfs
 # See src/port/fswrap.c
 LDFLAGS += --wrap=stat
 
-VERSION_DEFINES = -DBMAPPLE2_VERSION=\"$(BMAPPLE2_VERSION)\" \
-                  -DBMAPPLE2_GIT=\"$(BMAPPLE2_GIT)\" -DKEGS_VERSION=\"$(KEGS_VERSION)\"
+VERSION_DEFINES = -DBMATARIST_VERSION=\"$(BMATARIST_VERSION)\" \
+                  -DBMATARIST_GIT=\"$(BMATARIST_GIT)\" -DKEGS_VERSION=\"$(KEGS_VERSION)\"
 CFLAGS += $(VERSION_DEFINES)
 CPPFLAGS += $(VERSION_DEFINES)
 
@@ -82,7 +82,7 @@ CPPFLAGS += $(VERSION_DEFINES)
 src/port/%.o src/port/%.d: CFLAGS += -I $(KEGS) -I src/port -idirafter src/port/compat -std=gnu11
 
 # KEGS itself: compiled into build/ so the submodule stays clean. clock.c's
-# get_dtime() and micro_sleep() are renamed out of the way of BMApple2's
+# get_dtime() and micro_sleep() are renamed out of the way of BMAtariST's
 # (src/port/kegs.mk).
 KEGS_CFLAGS = -I $(KEGS) -I src/port -idirafter src/port/compat -std=gnu11 -w
 

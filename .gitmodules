@@ -2,8 +2,11 @@
 	path = third_party/circle-stdlib
 	url = https://github.com/smuehlst/circle-stdlib
 	ignore = dirty
-[submodule "third_party/kegs"]
-	path = third_party/kegs
-	url = https://github.com/david-schmidt/KEGS-upstream.git
-	branch = v1.38
+[submodule "third_party/hatari"]
+	path = third_party/hatari
+	url = https://github.com/hatari/hatari.git
+	ignore = dirty
+[submodule "third_party/zlib"]
+	path = third_party/zlib
+	url = https://github.com/madler/zlib.git
 	ignore = dirty

@@ -8,12 +8,12 @@
 // Sources: the BCM2712 device tree (addresses) and the behaviour of the
 // Linux vc4 display driver (registers, fields and values).
 //
-// This file is part of BMApple2, a bare metal Apple II and IIgs emulator for
+// This file is part of BMAtariST, a bare metal Atari ST emulator for
 // the Raspberry Pi. See LICENSE for licensing details.
 //
 
-#ifndef BMAPPLE2_KMS_PI5_REGS_H_
-#define BMAPPLE2_KMS_PI5_REGS_H_
+#ifndef BMATARIST_KMS_PI5_REGS_H_
+#define BMATARIST_KMS_PI5_REGS_H_
 
 #include <stdint.h>
 

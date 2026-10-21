@@ -3,7 +3,7 @@
 //
 // See modeset.h.
 //
-// This file is part of BMApple2, a bare metal Apple II and IIgs emulator for
+// This file is part of BMAtariST, a bare metal Atari ST emulator for
 // the Raspberry Pi. See LICENSE for licensing details.
 //
 
@@ -126,7 +126,7 @@ bool ModeSetter::Current(Timing *timing) {
   }
   if (known == 0) {
     CLogger::Get()->Write(FromModeSet, LogNotice,
-                          "Video mode %ux%u (totals %ux%u) isn't one BMApple2 switches",
+                          "Video mode %ux%u (totals %ux%u) isn't one BMAtariST switches",
                           h_active, v_active, h_total, v_total);
     return false;
   }

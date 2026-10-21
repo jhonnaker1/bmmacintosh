@@ -2,15 +2,15 @@
 // options.h
 //
 // Reads key=value options from cmdline.txt on the SD card, and from
-// bmapple2.cfg, where the BMApple2 menu saves its settings. A setting in
-// bmapple2.cfg wins over the same option in cmdline.txt.
+// bmatarist.cfg, where the BMAtariST menu saves its settings. A setting in
+// bmatarist.cfg wins over the same option in cmdline.txt.
 //
-// This file is part of BMApple2, a bare metal Apple II and IIgs emulator for
+// This file is part of BMAtariST, a bare metal Atari ST emulator for
 // the Raspberry Pi. See LICENSE for licensing details.
 //
 
-#ifndef BMAPPLE2_OPTIONS_H_
-#define BMAPPLE2_OPTIONS_H_
+#ifndef BMATARIST_OPTIONS_H_
+#define BMATARIST_OPTIONS_H_
 
 #include <circle/bcmpropertytags.h>
 

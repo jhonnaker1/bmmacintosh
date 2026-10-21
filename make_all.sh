@@ -1,7 +1,7 @@
 #!/bin/bash
 #
 # Builds the third party libraries (circle-stdlib: Circle and newlib, and the
-# Circle addons) and then the BMApple2 kernel for one board:
+# Circle addons) and then the BMAtariST kernel for one board:
 #
 #   ./make_all.sh [pi0|pi2|pi3|pi4|pi5] [--skip-patches]
 #
@@ -55,20 +55,20 @@ case "$RASPI" in
 esac
 if [ "$RASPI" -ge 4 ]
 then
-    export BMAPPLE2_AARCH=64
+    export BMATARIST_AARCH=64
     CONFIGURE_PREFIX=(-p aarch64-none-elf-)
 else
-    export BMAPPLE2_AARCH=32
+    export BMATARIST_AARCH=32
     CONFIGURE_PREFIX=()
 fi
 
 if [ ! -f "$SRC_DIR/sdcard/config.txt" ]
 then
-    echo "Must be run from the BMApple2 root directory." >&2
+    echo "Must be run from the BMAtariST root directory." >&2
     exit 1
 fi
 
-# newlib only uses makeinfo for its manuals, which BMApple2 doesn't need.
+# newlib only uses makeinfo for its manuals, which BMAtariST doesn't need.
 # Without it, a stand-in writes empty ones.
 if ! command -v makeinfo >/dev/null 2>&1
 then

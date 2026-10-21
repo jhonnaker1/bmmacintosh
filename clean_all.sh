@@ -12,7 +12,7 @@
 
 if [ ! -f sdcard/config.txt ]
 then
-    echo "Must be run from the BMApple2 root directory." >&2
+    echo "Must be run from the BMAtariST root directory." >&2
     exit 1
 fi
 

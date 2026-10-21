@@ -2,17 +2,17 @@
 // logging.h
 //
 // Where the log (Circle's logger and stdio, so KEGS's messages too)
-// goes: the serial port (UART), the serial port and /bmapple2.log on the
+// goes: the serial port (UART), the serial port and /bmatarist.log on the
 // SD card (file), or nowhere.
 // Set with enable_logging=off|uart|file, as in BMC64, or in the menu.
 // Based on BMC64's CLoggingDevice (third_party/common/menu_logging_device.cpp).
 //
-// This file is part of BMApple2, a bare metal Apple II and IIgs emulator for
+// This file is part of BMAtariST, a bare metal Atari ST emulator for
 // the Raspberry Pi. See LICENSE for licensing details.
 //
 
-#ifndef BMAPPLE2_LOGGING_H_
-#define BMAPPLE2_LOGGING_H_
+#ifndef BMATARIST_LOGGING_H_
+#define BMATARIST_LOGGING_H_
 
 #include <circle/device.h>
 #include <circle/spinlock.h>
@@ -20,7 +20,7 @@
 #include "host.h"
 #include "sdcard/sd_fs.h"
 
-#define LOG_FILE "/bmapple2.log"
+#define LOG_FILE "/bmatarist.log"
 
 // During start up, writes the log to the card now if it goes to the file
 // (see CLogDevice::Flush()); afterwards does nothing. Implemented by the

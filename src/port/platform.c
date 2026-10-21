@@ -1,48 +1,70 @@
 /*
- * platform.c - KEGS platform layer for BMApple2.
+ * platform.c - Hatari platform layer for BMAtariST.
  *
- * Does what KEGS's front ends (xdriver.c, windriver.c, macdriver) do, on
- * top of the Circle kernel services in src/host.h: starts KEGS, runs its
- * main loop a frame (run_16ms()) at a time, copies its picture to the
- * display, and passes on keys, the mouse and the joysticks. Sound is in
- * snddrv.c, the joysticks in joystick.c, the menu in menu.c and osd.c.
+ * Does what Hatari's front ends (src/sdl/main_sdl.c, src/retro/main_retro.c)
+ * do, on top of the Circle kernel services in src/host.h: starts Hatari,
+ * runs its CPU a frame (one ST VBL) at a time, copies its picture to the
+ * display, and keeps its floppy images written back to the SD card. The
+ * keyboard, mouse and gamepads are read in gui_event.c, the joysticks in
+ * joy_ui.c, the sound is in audio.c, the picture in screen.c, the menu in
+ * menu.c and osd.c.
  *
- * Picture: KEGS draws 32-bit pixels (0xRRGGBB, as its Windows front end
- * asks for them with video_set_*_mask(); KEGS works its colours out for
- * 8-bit fields) and reports the rectangles that changed each frame
- * (video_out_data()); only those are copied, converted to RGB565.
+ * Frames: Hatari's CPU core stops at each VBL (timing.c, as in its libretro
+ * core); when the display refreshes at (close to) the ST's rate (50 Hz PAL,
+ * 60 Hz NTSC, 71 Hz on the monochrome monitor) each frame is shown on its
+ * own display refresh, so scrolling is perfectly smooth; otherwise a timer
+ * keeps the pace.
  *
- * Timing: KEGS paces itself to the IIgs's 59.92 Hz with get_dtime() and
- * micro_sleep() (clock.c). Here those are BMApple2's: when the display
- * refreshes at (close to) that rate, each frame is shown on its own display
- * refresh and KEGS's sleep is skipped, so scrolling is perfectly smooth;
- * otherwise KEGS's sleep does the pacing.
+ * Settings: Hatari's own (machine, TOS, memory, disks, joysticks...) are
+ * kept in hatari.cfg in the card's root, which Hatari reads and writes
+ * itself; BMAtariST's (video, sound volume, network) in bmatarist.cfg.
  *
- * This file is part of BMApple2, a bare metal Apple II and IIgs emulator for
- * the Raspberry Pi. See LICENSE for licensing details.
+ * This file is part of BMAtariST, a bare metal Atari ST emulator for the
+ * Raspberry Pi. See LICENSE for licensing details.
  */
 
-#include "defc.h"
+#include "main.h"
+#include "configuration.h"
+#include "change.h"
+#include "clocks_timings.h"
+#include "dialog.h"
+#include "file.h"
+#include "floppy.h"
+#include "floppies/dim.h"
+#include "floppies/msa.h"
+#include "floppies/st.h"
+#include "m68000.h"
+#include "reset.h"
+#include "screen.h"
+#include "sound.h"
+#include "tos.h"
+#include "video.h"
+#include "hatari-glue.h"
+#include "newcpu.h"
 
-#include <math.h>
+#include <ctype.h>
+#include <dirent.h>
 #include <strings.h>
+#include <sys/stat.h>
 #include <unistd.h>
 
 #include "../host.h"
-#include "bmapple2.h"
+#include "bmatarist.h"
 #include "osd.h"
-
-/* KEGS (protos.h declares them; the names are KEGS's). */
-extern int g_audio_enable;
-extern int g_limit_speed;
-extern int g_joystick_type;
-extern const char g_kegs_version_str[];
 
 /* ---- Settings ---------------------------------------------------------------- */
 
-const char *bmapple2_sd_root(void)
+const char *bmatarist_sd_root(void)
 {
 	return host_option("root", "/");
+}
+
+void bmatarist_card_path(char *path, unsigned size, const char *dir, const char *name)
+{
+	const char *root = bmatarist_sd_root();
+	size_t len = strlen(root);
+	snprintf(path, size, "%s%s%s%s%s", root, len > 0 && root[len - 1] == '/' ? "" : "/",
+	         dir, dir[0] ? "/" : "", name);
 }
 
 static int option_on(const char *name, int default_value)
@@ -54,57 +76,60 @@ static int option_on(const char *name, int default_value)
 	    || strcmp(value, "yes") == 0 || strcmp(value, "true") == 0;
 }
 
-/* ---- Video ------------------------------------------------------------------- */
+static char hatari_cfg[256];
 
-/* KEGS's window: the 640x400 Apple area and its borders, 704 x 462. KEGS's
-   picture is taller: its status lines (F5) are below that, up to
-   kegs_height lines, and video_out_data() writes them too. */
-#define FB_W X_A2_WINDOW_WIDTH
-#define FB_H X_A2_WINDOW_HEIGHT
+/* ---- Video ------------------------------------------------------------------- */
 
 static uint16_t *fb_pixels;
 static int fb_pitch_px;
-static word32 *kegs_pixels;     /* what video_out_data() writes */
-static int kegs_height;         /* its height (FB_W wide) */
-static Kimage *main_kimage;
 static int osd_view;
 
-static double refresh_rate = 60.0;
+static double refresh_rate = 50.0;
 static int vsync_lock;
+static double machine_rate;     /* the ST's frame rate the mode was set for */
 
-uint16_t *bmapple2_framebuffer(int *pitch_px)
+uint16_t *bmatarist_framebuffer(int *pitch_px)
 {
 	*pitch_px = fb_pitch_px;
 	return fb_pixels;
 }
 
-/* KEGS's 640x400 Apple area filled a 4:3 monitor, so its pixels are 5/6
-   as wide as they are high; aspect= in cmdline.txt multiplies that. */
-#define PIXEL_ASPECT (5.0 / 6.0)
-
 static void apply_view(void)
 {
-	double aspect = (double) FB_W / FB_H * PIXEL_ASPECT
-	                * host_option_double("aspect", 1.0);
-	if (osd_view)
+	int w, h;
+	double aspect;
+	if (osd_view) {
 		host_video_set_view(0, 0, 640, 460, 640.0 / 460.0);
-	else
-		host_video_set_view(0, 0, FB_W, FB_H, aspect);
+		return;
+	}
+	bmatarist_screen_view(&w, &h, &aspect);
+	host_video_set_view(0, 0, w, h, aspect * host_option_double("aspect", 1.0));
 }
 
-void bmapple2_osd_view(int on)
+void bmatarist_osd_view(int on)
 {
 	osd_view = on;
 	apply_view();
-	if (!on && main_kimage != NULL)
-		video_set_x_refresh_needed(main_kimage, 1);
+	if (!on)
+		bmatarist_screen_copy(TRUE);
 }
 
 static void clear_framebuffer(void)
 {
 	int y;
-	for (y = 0; y < FB_H; y++)
-		memset(fb_pixels + y * fb_pitch_px, 0, FB_W * 2);
+	for (y = 0; y < BMATARIST_FB_H; y++)
+		memset(fb_pixels + y * fb_pitch_px, 0, BMATARIST_FB_W * 2);
+}
+
+/* The ST's frame rate: 50.05 Hz (PAL), 60.04 Hz (NTSC) or 71.2 Hz (the
+   monochrome monitor), a little different on each machine (Hatari's
+   clocks_timings.c). */
+static double st_rate(void)
+{
+	uint32_t vbl = ClocksTimings_GetVBLPerSec(ConfigureParams.System.nMachineType,
+	                                          nScreenRefreshRate);
+	double rate = (double) vbl / (1 << CLOCKS_TIMINGS_SHIFT_VBL);
+	return rate > 20.0 && rate < 100.0 ? rate : 50.0;
 }
 
 static void measure_refresh_rate(void)
@@ -120,283 +145,132 @@ static void measure_refresh_rate(void)
 	rate = COUNT / (host_time() - start);
 	if (rate > 20.0 && rate < 250.0)
 		refresh_rate = rate;
-	printf("BMApple2: display refresh rate %.3f Hz\n", refresh_rate);
+	printf("BMAtariST: display refresh rate %.3f Hz\n", refresh_rate);
 }
 
 static void update_sync_mode(void)
 {
 	const char *mode = host_option("vsync", "auto");
+	double rate = st_rate();
 	if (strcmp(mode, "off") == 0 || strcmp(mode, "0") == 0)
 		vsync_lock = FALSE;
 	else if (strcmp(mode, "on") == 0 || strcmp(mode, "1") == 0)
 		vsync_lock = TRUE;
 	else {
-		/* The IIgs and IIe run at 59.92 Hz: a 60 Hz display is right. */
-		double ratio = refresh_rate / VBL_RATE;
+		double ratio = refresh_rate / rate;
 		vsync_lock = ratio > 0.98 && ratio < 1.02;
 	}
-	printf("BMApple2: display %.2f Hz, machine %.2f Hz, %s\n", refresh_rate, VBL_RATE,
+	printf("BMAtariST: display %.2f Hz, ST %.2f Hz, %s\n", refresh_rate, rate,
 	       vsync_lock ? "synchronised to the display" : "timer paced");
 }
 
-double bmapple2_refresh_rate(void)
+/* Where the host can set the video mode (the Pi 4 and 5), the display is
+   set to the ST's rate, and timed again, whenever that changes (PAL, NTSC
+   or the monochrome monitor). */
+static void match_display_rate(void)
+{
+	double rate = st_rate();
+	if (rate == machine_rate)
+		return;
+	machine_rate = rate;
+	if (host_display_match_rate(rate))
+		measure_refresh_rate();
+	update_sync_mode();
+}
+
+double bmatarist_refresh_rate(void)
 {
 	return refresh_rate;
 }
 
-int bmapple2_vsync_locked(void)
+int bmatarist_vsync_locked(void)
 {
 	return vsync_lock;
 }
 
-void bmapple2_video_settings_changed(void)
+void bmatarist_video_settings_changed(void)
 {
-	update_sync_mode();
-	apply_view();
-}
-
-/* The display's resolution setting changed (the Pi 5): the mode is set
-   again for the IIgs's rate (from BMA800XL). */
-void bmapple2_display_mode_changed(void)
-{
-	if (host_display_match_rate(VBL_RATE))
-		measure_refresh_rate();
-	update_sync_mode();
-	bmapple2_sound_open();
-	apply_view();
-}
-
-/* ---- Monitors --------------------------------------------------------- */
-
-/* The monitor: a colour one, or a monochrome one in white, green or amber.
-   A monochrome monitor shows each pixel's brightness in its own colour, and
-   the Apple's monochrome switch ($C021, as a IIgs's Control Panel sets for
-   a monochrome monitor) is kept on, so Hi-Res is drawn as sharp dots
-   rather than in colours. */
-static const struct {
-	const char *key;            /* monitor= */
-	const char *name;
-	int r, g, b;                /* the phosphor's colour */
-} monitors[BMAPPLE2_MONITORS] = {
-	{"color", "Colour", 0, 0, 0},
-	{"white", "Black and White", 0xff, 0xff, 0xff},
-	{"green", "Green", 0x33, 0xff, 0x33},
-	{"amber", "Amber", 0xff, 0xb0, 0x00},
-};
-
-static int monitor;
-static int monitor_mono_set;         /* we turned the $C021 switch on */
-static uint8_t luma_r[256], luma_g[256], luma_b[256];
-static uint16_t mono_rgb565[256];
-
-extern int g_cur_a2_stat;
-extern word32 g_c034_val;
-extern dword64 g_cur_dfcyc;
-
-int bmapple2_monitor(void)
-{
-	return monitor;
-}
-
-const char *bmapple2_monitor_name(int m)
-{
-	return m >= 0 && m < BMAPPLE2_MONITORS ? monitors[m].name : "";
-}
-
-static void set_monitor(int m)
-{
-	int i;
-	monitor = m >= 0 && m < BMAPPLE2_MONITORS ? m : 0;
-	/* Brightness, Rec. 601: 77, 150 and 29 out of 256 (at most 255). */
-	for (i = 0; i < 256; i++) {
-		luma_r[i] = (uint8_t) (i * 77 / 256);
-		luma_g[i] = (uint8_t) (i * 150 / 256);
-		luma_b[i] = (uint8_t) (i * 29 / 256);
-	}
-	for (i = 0; i < 256; i++) {
-		int r = monitors[monitor].r * i / 255;
-		int g = monitors[monitor].g * i / 255;
-		int b = monitors[monitor].b * i / 255;
-		mono_rgb565[i] = (uint16_t) (((r & 0xf8) << 8) | ((g & 0xfc) << 3) | (b >> 3));
-	}
-	if (main_kimage != NULL)
-		video_set_x_refresh_needed(main_kimage, 1);
-}
-
-/* Chooses the monitor, now and for the next boot. */
-void bmapple2_set_monitor(int m)
-{
-	if (m < 0 || m >= BMAPPLE2_MONITORS)
+	if (fb_pixels == NULL)
 		return;
-	if (!host_option_set("monitor", monitors[m].key) || !host_options_save())
-		printf("BMApple2: cannot save monitor= in bmapple2.cfg\n");
-	set_monitor(m);
+	update_sync_mode();
+	clear_framebuffer();
+	apply_view();
 }
 
-static int monitor_from_option(void)
+void bmatarist_display_mode_changed(void)
 {
-	const char *want = host_option("monitor", "color");
-	int m;
-	for (m = 0; m < BMAPPLE2_MONITORS; m++)
-		if (strcmp(want, monitors[m].key) == 0)
-			return m;
-	return 0;
+	machine_rate = 0.0;
+	match_display_rate();
+	bmatarist_sound_open();
+	apply_view();
 }
 
-/* Each frame: keeps the monochrome switch on with a monochrome monitor
-   (the IIgs's ROM sets it from the Control Panel at every start), and
-   turns it off again once when going back to colour. */
-static void monitor_switch(void)
-{
-	int on = (g_cur_a2_stat & ALL_STAT_COLOR_C021) != 0;
-	if (monitor != 0 && !on) {
-		g_cur_a2_stat |= ALL_STAT_COLOR_C021;
-		change_display_mode(g_cur_dfcyc);
-		monitor_mono_set = TRUE;
-	} else if (monitor == 0 && monitor_mono_set) {
-		if (on) {
-			g_cur_a2_stat &= ~ALL_STAT_COLOR_C021;
-			change_display_mode(g_cur_dfcyc);
-		}
-		monitor_mono_set = FALSE;
-	}
-}
+/* ---- Speed --------------------------------------------------------------- */
 
-/* The changed parts of KEGS's picture into the frame buffer. */
-/* Line Y, from X0 to X1, from KEGS's picture into the framebuffer. */
-static void copy_line(int y, int x0, int x1)
-{
-	const word32 *src = kegs_pixels + (size_t) y * FB_W;
-	uint16_t *dst = fb_pixels + (size_t) y * fb_pitch_px;
-	int x;
-	if (monitor == 0) {
-		for (x = x0; x < x1; x++) {
-			word32 p = src[x];
-			dst[x] = (uint16_t) (((p >> 8) & 0xf800) | ((p >> 5) & 0x07e0)
-			                     | ((p >> 3) & 0x001f));
-		}
-	} else {
-		for (x = x0; x < x1; x++) {
-			word32 p = src[x];
-			dst[x] = mono_rgb565[luma_r[(p >> 16) & 0xff]
-			                     + luma_g[(p >> 8) & 0xff] + luma_b[p & 0xff]];
-		}
-	}
-}
+static int speed_percent = 100;
 
-static void copy_picture(void)
+int bmatarist_speed_percent(void)
 {
-	Change_rect rect;
-	int i, y;
-	for (i = 0; i < MAX_CHANGE_RECTS; i++) {
-		if (!video_out_data(kegs_pixels, main_kimage, FB_W, &rect, i))
-			break;
-		if (rect.y + rect.height > kegs_height || rect.x + rect.width > FB_W)
-			continue;  /* never written: video_out_data() checks the same */
-		for (y = rect.y; y < rect.y + rect.height && y < FB_H; y++)
-			copy_line(y, rect.x, rect.x + rect.width < FB_W ? rect.x + rect.width : FB_W);
-	}
-	/* The bottom lines, where the notification and the disk activity are
-	   drawn, every frame: KEGS only sends what changed, so they would stay
-	   on the picture after they've gone. */
-	for (y = FB_H - OSD_OVERLAY_LINES; y < FB_H; y++) {
-		if (y < 0)
-			continue;
-		if (y < kegs_height)
-			copy_line(y, 0, FB_W);
-		else
-			memset(fb_pixels + (size_t) y * fb_pitch_px, 0, FB_W * sizeof(uint16_t));
-	}
+	return speed_percent;
 }
 
 /* ---- Disk activity -------------------------------------------------------- */
 
-/* While a 5.25" or 3.5" drive turns: its slot and drive, track and (3.5")
-   side at the bottom left of the picture, by a red light like a real
-   drive's, lit while the disk is read; "no disk" in red if the drive is
-   empty, so that a program stuck loading can be seen to be (from BMCoco).
-   Read from KEGS's IWM once a frame. Hard disks (SmartPort) aren't shown.
-   The disk_activity option (Video, Show Disk Activity) turns it off. */
-
-extern Iwm g_iwm;
-
 static int da_enabled = -1;
-static dword64 da_last_read;
-static double da_lit_until, da_shown_until;
-static char da_text[32];
-static int da_error;
 
-int bmapple2_disk_activity(void)
+int bmatarist_disk_activity(void)
 {
 	if (da_enabled < 0)
 		da_enabled = host_option_int("disk_activity", 1) != 0;
 	return da_enabled;
 }
 
-void bmapple2_set_disk_activity(int on)
+void bmatarist_set_disk_activity(int on)
 {
 	da_enabled = on != 0;
 }
 
-static void draw_disk_activity(void)
-{
-	word32 state = g_iwm.state;
-	int is35 = (state & IWM_STATE_C031_APPLE35SEL) != 0;
-	int drive = (state & IWM_STATE_DRIVE_SEL) ? 1 : 0;
-	int turning = (state & (is35 ? IWM_STATE_MOTOR_ON35 : IWM_STATE_MOTOR_ON)) != 0;
-	Disk *dsk = is35 ? &g_iwm.drive35[drive] : &g_iwm.drive525[drive];
-	double now;
-	if (!bmapple2_disk_activity())
-		return;
-	now = host_time();
-	if (turning) {
-		int empty = dsk->name_ptr == 0 || dsk->name_ptr[0] == '\0';
-		if (dsk->dfcyc_last_read != da_last_read)
-			da_lit_until = now + 0.25;
-		da_last_read = dsk->dfcyc_last_read;
-		if (is35)
-			snprintf(da_text, sizeof da_text, "S5 D%d T%02u H%u%s", drive + 1,
-			         (unsigned) (dsk->cur_frac_track >> 17),
-			         (unsigned) ((dsk->cur_frac_track >> 16) & 1), empty ? " no disk" : "");
-		else
-			snprintf(da_text, sizeof da_text, "S6 D%d T%02u%s", drive + 1,
-			         (unsigned) (dsk->cur_frac_track >> 18), empty ? " no disk" : "");
-		da_error = empty;
-		da_shown_until = now + 2.0;
-	}
-	if (now > da_shown_until)
-		return;
-	osd_draw_disk_status(fb_pixels, fb_pitch_px, FB_W, FB_H, da_text,
-	                     now <= da_lit_until, da_error);
-}
-
-/* ---- Timing (clock.c's, renamed when it is compiled: see kegs.mk) -------- */
-
-double get_dtime(void)
-{
-	return host_time();
-}
-
-int micro_sleep(double dtime)
-{
-	if (dtime <= 0.0)
-		return 0;
-	/* With the display doing the pacing, waiting for the next refresh
-	   is the sleep. */
-	if (vsync_lock && !osd_view)
-		return 0;
-	if (dtime > 0.25)
-		dtime = 0.25;
-	host_sleep_us((unsigned) (dtime * 1000000.0));
-	return 0;
-}
-
 /* ---- Files ---------------------------------------------------------------- */
 
-/* KEGS writes to disk images as the IIgs writes to its disks, with nothing
-   kept back to write later, but the SD card's file system caches what it can.
-   Since the Pi can be switched off at any time, push everything out to the
-   card once a second. */
+/* Hatari keeps a floppy image in memory and writes it back to the card when
+   it's ejected. The Pi can be switched off at any time, so a floppy the ST
+   has written to is written back once its drive has been still for two
+   seconds, and everything is pushed out to the card once a second. */
+static double floppy_changed_at[MAX_FLOPPYDRIVES];
+
+static void write_back_floppies(double now)
+{
+	int d;
+	for (d = 0; d < MAX_FLOPPYDRIVES; d++) {
+		EMULATION_DRIVE *drv = &EmulationDrives[d];
+		const char *name = drv->sFileName;
+		bool saved = false;
+		if (!drv->bDiskInserted || !drv->bContentsChanged || !drv->bOKToSave) {
+			floppy_changed_at[d] = 0.0;
+			continue;
+		}
+		/* bContentsChanged stays set: it's written again two seconds
+		   after the last change of each burst of writing. */
+		if (floppy_changed_at[d] == 0.0) {
+			floppy_changed_at[d] = now;
+			continue;
+		}
+		if (now - floppy_changed_at[d] < 2.0)
+			continue;
+		if (MSA_FileNameIsMSA(name, true))
+			saved = MSA_WriteDisk(d, name, drv->pBuffer, drv->nImageBytes);
+		else if (ST_FileNameIsST(name, true))
+			saved = ST_WriteDisk(d, name, drv->pBuffer, drv->nImageBytes);
+		else if (DIM_FileNameIsDIM(name, true))
+			saved = DIM_WriteDisk(d, name, drv->pBuffer, drv->nImageBytes);
+		else
+			continue;   /* the rest are written when ejected, as Hatari does */
+		printf("BMAtariST: %s %s\n", saved ? "wrote back" : "cannot write back", name);
+		drv->bContentsChanged = false;
+		floppy_changed_at[d] = 0.0;
+	}
+}
+
 static void sync_files(void)
 {
 	int fd;
@@ -405,134 +279,225 @@ static void sync_files(void)
 		fsync(fd);
 }
 
-/* ---- Starting ----------------------------------------------------------- */
+/* ---- TOS ---------------------------------------------------------------- */
 
-/* KEGS stops if config.kegs isn't there (it only writes one it has read),
-   so a new card gets an empty one, as KEGS's own first run would write. */
-static void create_config(const char *path)
+/* The TOS images on the card: the tos folder, then roms (and the root),
+   any file ending .img, .rom or .tos of a size a TOS can be (192K for TOS
+   1.0x, 256K for 1.62 and 2.0x, 512K for TOS 3 and 4 and the smaller
+   EmuTOS, 1024K for the EmuTOS that runs on every machine). EmuTOS comes
+   on the card, so there's always one. */
+#define MAX_TOS 32
+
+static char tos_paths[MAX_TOS][256];
+static char tos_names[MAX_TOS][64];
+static int tos_count;
+
+static int tos_size_ok(long size)
 {
-	struct stat st;
-	FILE *f;
-	if (stat(path, &st) == 0)
-		return;
-	f = fopen(path, "w");
-	if (f == NULL) {
-		printf("BMApple2: cannot create %s\n", path);
-		return;
+	return size == 192 * 1024 || size == 256 * 1024 || size == 512 * 1024
+	    || size == 1024 * 1024;
+}
+
+static int has_tos_ext(const char *name)
+{
+	const char *dot = strrchr(name, '.');
+	return dot != NULL && (strcasecmp(dot, ".img") == 0 || strcasecmp(dot, ".rom") == 0
+	                       || strcasecmp(dot, ".tos") == 0);
+}
+
+/* "TOS 1.04 (UK)" or "EmuTOS (etos1024k.img)", from the image's header. */
+static void describe_tos(const char *path, char *name, size_t size)
+{
+	static const char *const countries[] = {
+		"US", "DE", "FR", "UK", "ES", "IT", "SE", "CH-FR", "CH-DE", "TR", "FI",
+		"NO", "DK", "SA", "NL", "CZ", "HU", "PL", "LT", "RU", "EE", "BY", "UA",
+		"SK", "RO", "BG", "SI", "HR", "RS", "ME", "MK", "GR", "LV", "IL", "ZA",
+		"PT", "BE", "JP", "CN", "KR", "VN", "IN", "IR", "MN", "NP", "LA", "KH",
+		"ID", "BD"
+	};
+	unsigned char head[0x40];
+	const char *base = strrchr(path, '/');
+	FILE *f = fopen(path, "rb");
+	size_t got = 0;
+	base = base ? base + 1 : path;
+	if (f != NULL) {
+		got = fread(head, 1, sizeof head, f);
+		fclose(f);
 	}
-	fprintf(f, "# KEGS configuration file version %s\n", g_kegs_version_str);
-	fclose(f);
-	printf("BMApple2: created %s\n", path);
+	if (got == sizeof head && memcmp(head + 0x2c, "ETOS", 4) == 0) {
+		snprintf(name, size, "EmuTOS (%s)", base);
+	} else if (got == sizeof head) {
+		unsigned country = (head[0x1d] >> 1) & 0x7f;
+		snprintf(name, size, "TOS %x.%02x %s (%s)", head[2], head[3],
+		         country < sizeof countries / sizeof countries[0] ? countries[country] : "",
+		         base);
+	} else {
+		snprintf(name, size, "%s", base);
+	}
 }
 
-/* ---- Restarting -------------------------------------------------------------- */
-
-/* Boots the machine again, as switching it off and on does: the power-up
-   byte is made wrong ($3F4 is $3F3 XOR $A5 once the machine has started),
-   which every Apple II ROM takes as a power on, and the machine is reset. */
-void bmapple2_restart(void)
+static void find_tos(void)
 {
-	set_memory_c(0x3f4, (get_memory_c(0x3f3) ^ 0xa5) ^ 0xff, 0);
-	do_reset();
-}
-
-/* ---- Starting a disk image ------------------------------------------------ */
-
-/* Which slot boots an image: 6 for 5.25" disks, 5 for 3.5" ones, 7 (KEGS's
-   SmartPort hard disks) for anything bigger. A WOZ image says which drive
-   it is for (its INFO chunk); the others go by size, which is enough to
-   tell 140K (plus a 2MG or nibble image's extra) from 800K from more. */
-static int boot_slot(const char *path)
-{
-	struct stat st;
-	const char *dot = strrchr(path, '.');
-	if (dot != NULL && strcasecmp(dot, ".woz") == 0) {
-		unsigned char header[22];
-		FILE *f = fopen(path, "rb");
-		int disk_type = 0;
-		if (f != NULL) {
-			if (fread(header, 1, sizeof header, f) == sizeof header
-			    && memcmp(header + 12, "INFO", 4) == 0)
-				disk_type = header[21];
-			fclose(f);
+	static const char *const dirs[] = {"tos", "roms", ""};
+	unsigned d;
+	tos_count = 0;
+	for (d = 0; d < sizeof dirs / sizeof dirs[0]; d++) {
+		char dir_path[256];
+		DIR *dir;
+		struct dirent *e;
+		bmatarist_card_path(dir_path, sizeof dir_path, dirs[d], "");
+		dir = opendir(dir_path);
+		if (dir == NULL)
+			continue;
+		while ((e = readdir(dir)) != NULL && tos_count < MAX_TOS) {
+			char path[256];
+			struct stat st;
+			if (e->d_name[0] == '.' || !has_tos_ext(e->d_name))
+				continue;
+			bmatarist_card_path(path, sizeof path, dirs[d], e->d_name);
+			if (stat(path, &st) != 0 || !S_ISREG(st.st_mode) || !tos_size_ok(st.st_size))
+				continue;
+			snprintf(tos_paths[tos_count], sizeof tos_paths[0], "%s", path);
+			describe_tos(path, tos_names[tos_count], sizeof tos_names[0]);
+			tos_count++;
 		}
-		return disk_type == 2 ? 5 : 6;
+		closedir(dir);
 	}
-	if (stat(path, &st) != 0)
-		return -1;
-	if (st.st_size <= 300 * 1024)
-		return 6;
-	if (st.st_size <= 900 * 1024)
-		return 5;
-	return 7;
+	/* Sorted by name, EmuTOS first. */
+	{
+		int i, j;
+		for (i = 1; i < tos_count; i++) {
+			for (j = i; j > 0 && strcmp(tos_names[j - 1], tos_names[j]) > 0; j--) {
+				char p[256], n[64];
+				memcpy(p, tos_paths[j], sizeof p);
+				memcpy(n, tos_names[j], sizeof n);
+				memcpy(tos_paths[j], tos_paths[j - 1], sizeof p);
+				memcpy(tos_names[j], tos_names[j - 1], sizeof n);
+				memcpy(tos_paths[j - 1], p, sizeof p);
+				memcpy(tos_names[j - 1], n, sizeof n);
+			}
+		}
+	}
+	printf("BMAtariST: %d TOS image(s)\n", tos_count);
 }
 
-/* The IIgs's battery RAM (clock.c): the Control Panel's settings, ending in
-   a checksum the ROM checks at start up (and sets them all back to their
-   defaults if it is wrong). */
-extern byte *g_bram_ptr;
-extern int g_rom_version;
-extern int g_config_kegs_update_needed;
-#define BRAM_STARTUP_SLOT 0x28      /* 0 is "Scan" */
-
-/* Changes one battery RAM setting, checksum and all: going down from $FA,
-   the sum is rotated left and the 16-bit word there added; $FC-$FD hold
-   it and $FE-$FF the same XOR $AAAA (worked out from saved battery RAM,
-   and the same for ROM 01 and ROM 3). */
-static void bram_set(int offset, int value)
+int bmatarist_tos_count(void)
 {
-	unsigned sum = 0;
+	return tos_count;
+}
+
+const char *bmatarist_tos_path(int n)
+{
+	return n >= 0 && n < tos_count ? tos_paths[n] : "";
+}
+
+const char *bmatarist_tos_name(int n)
+{
+	return n >= 0 && n < tos_count ? tos_names[n] : "";
+}
+
+/* The TOS to start with: the one in hatari.cfg if it's there, else the
+   1024K EmuTOS (it runs on every machine), else the first found. */
+static const char *default_tos(void)
+{
 	int i;
-	g_bram_ptr[offset] = (byte) value;
-	for (i = 0xfa; i >= 0; i--) {
-		sum = ((sum << 1) | (sum >> 15)) & 0xffff;
-		sum = (sum + (g_bram_ptr[i] | (g_bram_ptr[i + 1] << 8))) & 0xffff;
-	}
-	g_bram_ptr[0xfc] = (byte) (sum & 0xff);
-	g_bram_ptr[0xfd] = (byte) (sum >> 8);
-	g_bram_ptr[0xfe] = (byte) ((sum ^ 0xaaaa) & 0xff);
-	g_bram_ptr[0xff] = (byte) ((sum ^ 0xaaaa) >> 8);
-	g_config_kegs_update_needed = 1;     /* KEGS saves it in config.kegs */
+	for (i = 0; i < tos_count; i++)
+		if (strstr(tos_paths[i], "etos1024") != NULL)
+			return tos_paths[i];
+	return tos_count > 0 ? tos_paths[0] : NULL;
 }
 
-/* While a 5.25" disk is being started on a IIgs: frames until the startup
-   slot is set back, and what it was. */
-static int startup_slot_frames;
-static int startup_slot_saved;
-
-static void startup_slot_continue(void)
+/* Is the TOS image hatari.cfg names there? Read from the file itself: it
+   is checked before Hatari has started. */
+static int cfg_tos_exists(const char *cfg)
 {
-	if (startup_slot_frames > 0 && --startup_slot_frames == 0) {
-		bram_set(BRAM_STARTUP_SLOT, startup_slot_saved);
-		printf("BMApple2: startup slot set back to %d\n", startup_slot_saved);
+	char line[512];
+	int found = TRUE;
+	FILE *f = fopen(cfg, "r");
+	if (f == NULL)
+		return FALSE;
+	while (fgets(line, sizeof line, f) != NULL) {
+		char *p = line + strspn(line, " \t");
+		struct stat st;
+		if (strncmp(p, "szTosImageFileName", 18) != 0)
+			continue;
+		p = strchr(p, '=');
+		if (p == NULL)
+			break;
+		p += 1 + strspn(p + 1, " \t");
+		p[strcspn(p, "\r\n")] = '\0';
+		found = *p != '\0' && stat(p, &st) == 0;
+		break;
 	}
+	fclose(f);
+	return found;
 }
 
-/* Puts PATH in drive 1 of the slot that boots it and restarts. Drive 1 of
-   the slots above it is emptied (F4 puts those disks back): with slot 7
-   empty KEGS goes on to slot 5, and a IIe on to slot 6. A IIgs doesn't go
-   on from slot 5 to slot 6, so for a 5.25" disk its startup slot (the
-   Control Panel's, "Scan" by default) is set to 6 for this start, then set
-   back once the disk has started. */
+/* ---- Settings changes ----------------------------------------------------- */
+
+static CNF_PARAMS settings_before;
+
+void bmatarist_settings_begin(void)
+{
+	settings_before = ConfigureParams;
+}
+
+void bmatarist_settings_apply(int force_reset)
+{
+	/* Hatari's own settings dialog's way (dialog.c): it works out what
+	   has to be reset or reloaded for the changes. */
+	Change_CopyChangedParamsToConfiguration(&settings_before, &ConfigureParams,
+	                                        force_reset);
+	Configuration_Save();
+	settings_before = ConfigureParams;
+	bmatarist_video_settings_changed();
+	machine_rate = 0.0;
+}
+
+/* ---- Resets ------------------------------------------------------------------- */
+
+void bmatarist_cold_reset(void)
+{
+	Reset_Cold();
+}
+
+void bmatarist_warm_reset(void)
+{
+	Reset_Warm();
+}
+
+/* ---- Starting a file ------------------------------------------------------ */
+
+static int is_floppy_image(const char *path)
+{
+	static const char *const exts[] = {".st", ".msa", ".dim", ".stx", ".ipf", ".scp",
+	                                   ".zip", ".gz", NULL};
+	const char *dot = strrchr(path, '.');
+	int i;
+	if (dot == NULL)
+		return FALSE;
+	for (i = 0; exts[i] != NULL; i++)
+		if (strcasecmp(dot, exts[i]) == 0)
+			return TRUE;
+	return FALSE;
+}
+
+/* The web UI's "start this file": a floppy image goes in drive A and the ST
+   starts again from it. */
 static void autostart(const char *path)
 {
-	int slot = boot_slot(path);
-	int s;
-	if (slot < 0) {
-		printf("Web UI: cannot start %s: not found\n", path);
+	if (!is_floppy_image(path)) {
+		printf("Web UI: %s is not a floppy image\n", path);
+		osd_notify("Only floppy images can be started");
 		return;
 	}
-	printf("Web UI: starting %s from slot %d\n", path, slot);
-	for (s = 7; s > slot; s--)
-		iwm_eject_disk_by_num(s, 0);
-	insert_disk(slot, 0, path, 0, NULL, -1, 0);
-	if (slot == 6 && g_rom_version != 0) {
-		if (startup_slot_frames == 0)
-			startup_slot_saved = g_bram_ptr[BRAM_STARTUP_SLOT];
-		bram_set(BRAM_STARTUP_SLOT, 6);
-		startup_slot_frames = 10 * 60;
+	printf("Web UI: starting %s\n", path);
+	bmatarist_settings_begin();
+	if (Floppy_SetDiskFileName(0, path, NULL) == NULL) {
+		osd_notify("Cannot open that floppy image");
+		return;
 	}
-	bmapple2_restart();
+	bmatarist_settings_apply(TRUE);
 }
 
 /* ---- Requests from the web UI ------------------------------------------ */
@@ -542,13 +507,13 @@ static volatile int request_coldstart = FALSE;
 static char autostart_path[600];
 static volatile int request_autostart = FALSE;
 
-void bmapple2_request_power(int power_off)
+void bmatarist_request_power(int power_off)
 {
 	request_power = power_off ? 1 : 0;
 }
 
 /* Called by the web UI. */
-void bmapple2_request_coldstart(void)
+void bmatarist_request_coldstart(void)
 {
 	request_coldstart = TRUE;
 }
@@ -564,9 +529,25 @@ void emu_autostart_interrupt(const char *path)
 	request_autostart = TRUE;
 }
 
-int bmapple2_pending_requests(void)
+int bmatarist_pending_requests(void)
 {
 	return request_power >= 0 || request_coldstart || request_autostart;
+}
+
+static void power(int off)
+{
+	int d;
+	printf("%s\n", off ? "Shutting down" : "Rebooting");
+	/* Changed floppies are written back as Hatari does when they are
+	   ejected. */
+	for (d = 0; d < MAX_FLOPPYDRIVES; d++)
+		if (EmulationDrives[d].bContentsChanged)
+			Floppy_EjectDiskFromDrive(d);
+	sync_files();
+	if (off)
+		host_power_off();
+	else
+		host_reboot();
 }
 
 static void handle_requests(void)
@@ -579,334 +560,96 @@ static void handle_requests(void)
 	if (request_coldstart) {
 		request_coldstart = FALSE;
 		printf("Web UI: restart\n");
-		bmapple2_restart();
+		bmatarist_cold_reset();
 	}
 	if (request_power >= 0) {
-		int power_off = request_power;
+		int off = request_power;
 		request_power = -1;
-		printf("%s\n", power_off ? "Shutting down" : "Rebooting");
-		sync_files();
-		if (power_off)
-			host_power_off();
-		else
-			host_reboot();
+		power(off);
 	}
 }
 
 static double last_sync_time;
 
-void bmapple2_idle(void)
+void bmatarist_idle(void)
 {
 	double now = host_time();
-	bmapple2_feed_silence();
+	bmatarist_feed_silence();
 	if (now - last_sync_time >= 1.0) {
 		last_sync_time = now;
+		write_back_floppies(now);
 		sync_files();
 	}
 	if (request_power >= 0)
 		handle_requests();
 }
 
-/* ---- ROM --------------------------------------------------------------- */
+/* ---- Hatari's front end functions (main_sdl.c, dialogs) ------------------ */
 
-/* PATH in the card's DIR folder ("" for the root). */
-static void card_path(char *path, size_t size, const char *dir, const char *name)
+static int quit_value;
+
+void Main_RequestQuit(int exitval)
 {
-	const char *root = bmapple2_sd_root();
-	size_t len = strlen(root);
-	snprintf(path, size, "%s%s%s%s%s", root, len > 0 && root[len - 1] == '/' ? "" : "/",
-	         dir, dir[0] ? "/" : "", name);
+	/* There's nothing to quit to: the menu powers off or reboots. */
+	quit_value = exitval;
 }
 
-/* Reads exactly SIZE bytes of roms/NAME into BUF. */
-static int read_rom_part(const char *name, unsigned char *buf, size_t size)
+void Main_SetQuitValue(int exitval)
 {
-	char path[256];
-	struct stat st;
-	FILE *f;
-	size_t got;
-	card_path(path, sizeof path, "roms", name);
-	if (stat(path, &st) != 0 || (size_t) st.st_size != size)
-		return FALSE;
-	f = fopen(path, "rb");
-	if (f == NULL)
-		return FALSE;
-	got = fread(buf, 1, size, f);
-	fclose(f);
-	return got == size;
+	quit_value = exitval;
 }
 
-static void write_rom(const char *name, const unsigned char *data, size_t size)
+static char error_text[160];
+
+/* Hatari can't go on (it couldn't load the TOS, for one): the main loop
+   shows why. */
+void Main_ErrorExit(const char *msg1, const char *msg2, int errval)
 {
-	char path[256];
-	FILE *f;
-	card_path(path, sizeof path, "roms", name);
-	f = fopen(path, "wb");
-	if (f == NULL || fwrite(data, 1, size, f) != size) {
-		printf("BMApple2: cannot write %s\n", path);
-		if (f != NULL)
-			fclose(f);
-		return;
-	}
-	fclose(f);
-	printf("BMApple2: made %s\n", path);
+	snprintf(error_text, sizeof error_text, "%s%s%s", msg1 ? msg1 : "Hatari stopped",
+	         msg2 ? ": " : "", msg2 ? msg2 : "");
+	printf("Hatari: error %d: %s\n", errval, error_text);
+	bQuitProgram = true;
+	M68000_SetSpecial(SPCFLAG_BRK);
 }
 
-/* MAME's ROM sets (Ample's too) have the chips, not ROM files: for the
-   IIgs ROM 3, apple2gs.zip's 341-0728 and 341-0748, the second with its
-   halves the other way round (MAME's apple2gs.cpp); for the enhanced IIe,
-   apple2e.zip's apple2ee/342-0304-a.e10 ($C000-$DFFF) and 342-0303-a.e8
-   ($E000-$FFFF) (or the unenhanced IIe's 342-0135-b.64 and 342-0134-a.64,
-   from the same zip), and a2diskiing.zip's 341-0027-a.p5 (the Disk II card's
-   PROM, at $600 in KEGS's IIe ROM file). Made into ROM.03 and APPLE2E.ROM
-   once, when those aren't there yet. */
-static void make_roms(void)
+/* Hatari asks (dialog.c's reset question, overwriting a file...): BMAtariST
+   doesn't, and the answer is no. Its notices go to the notification line. */
+bool DlgAlert_Query(const char *text)
 {
-	char path[256];
-	struct stat st;
-	unsigned char *buf;
-
-	card_path(path, sizeof path, "roms", "ROM.03");
-	if (stat(path, &st) != 0) {
-		buf = malloc(256 * 1024);
-		if (buf != NULL && read_rom_part("341-0728", buf, 128 * 1024)
-		    && read_rom_part("341-0748", buf + 128 * 1024, 128 * 1024)) {
-			unsigned char *half = malloc(64 * 1024);
-			if (half != NULL) {
-				memcpy(half, buf + 128 * 1024, 64 * 1024);
-				memmove(buf + 128 * 1024, buf + 192 * 1024, 64 * 1024);
-				memcpy(buf + 192 * 1024, half, 64 * 1024);
-				free(half);
-				write_rom("ROM.03", buf, 256 * 1024);
-			}
-		}
-		free(buf);
-	}
-
-	card_path(path, sizeof path, "roms", "APPLE2E.ROM");
-	if (stat(path, &st) != 0) {
-		buf = calloc(32 * 1024, 1);
-		if (buf != NULL
-		    && ((read_rom_part("342-0304-a.e10", buf + 16 * 1024, 8 * 1024)
-		         && read_rom_part("342-0303-a.e8", buf + 24 * 1024, 8 * 1024))
-		        || (read_rom_part("342-0135-b.64", buf + 16 * 1024, 8 * 1024)
-		            && read_rom_part("342-0134-a.64", buf + 24 * 1024, 8 * 1024)))) {
-			if (!read_rom_part("341-0027-a.p5", buf + 0x600, 256))
-				printf("BMApple2: no 341-0027-a.p5: the IIe has no Disk II card\n");
-			write_rom("APPLE2E.ROM", buf, 32 * 1024);
-		}
-		free(buf);
-	}
+	printf("Hatari asks: %s (no)\n", text);
+	return false;
 }
 
-/* ---- Machines ------------------------------------------------------------ */
-
-/* The machines, in the order BMApple2 prefers them, each with the names its
-   ROM file usually has (KEGS's list, config.c, and those of other
-   emulators' ROM sets) and its size. A file just called ROM is whichever
-   machine its size says. */
-static const struct {
-	const char *key;            /* machine= in cmdline.txt / bmapple2.cfg */
-	const char *name;
-	long size;
-	const char *files[7];
-} machines[BMAPPLE2_MACHINES] = {
-	{"iigs3", "Apple IIgs, ROM 3", 256 * 1024,
-	 {"ROM.03", "ROM03", "APPLE2GS.ROM2", "Rom03gd", NULL}},
-	{"iigs1", "Apple IIgs, ROM 01", 128 * 1024,
-	 {"ROM.01", "ROM01", "APPLE2GS.ROM", "342-0077-b", "xgs.rom", "XGS.ROM", NULL}},
-	{"iie", "Apple IIe", 32 * 1024,
-	 {"APPLE2E.ROM", NULL}},
-};
-
-/* Each machine's ROM file, or "" if there is none. */
-static char machine_rom[BMAPPLE2_MACHINES][256];
-static int current_machine = -1;
-
-static int rom_file_is(const char *path, long size)
+bool DlgAlert_Notice(const char *text)
 {
-	struct stat st;
-	return stat(path, &st) == 0 && S_ISREG(st.st_mode) && st.st_size == size;
+	printf("Hatari: %s\n", text);
+	osd_notify(text);
+	return true;
 }
 
-/* Looks for each machine's ROM in the roms folder, then the card's root.
-   KEGS's own search (g_kegs_default_paths) works from the current folder
-   and HOME, which a bare metal kernel doesn't have, so the ROM is passed to
-   KEGS with -rom. */
-static void find_roms(void)
+void Dialog_HaltDlg(void)
 {
-	static const char *const dirs[] = {"roms", "", NULL};
-	int m, d, n;
-	make_roms();
-	for (m = 0; m < BMAPPLE2_MACHINES; m++) {
-		machine_rom[m][0] = '\0';
-		for (d = 0; dirs[d] != NULL && machine_rom[m][0] == '\0'; d++) {
-			for (n = 0; machines[m].files[n] != NULL; n++) {
-				card_path(machine_rom[m], sizeof machine_rom[m], dirs[d],
-				          machines[m].files[n]);
-				if (rom_file_is(machine_rom[m], machines[m].size))
-					break;
-				machine_rom[m][0] = '\0';
-			}
-			if (machine_rom[m][0] == '\0') {
-				card_path(machine_rom[m], sizeof machine_rom[m], dirs[d], "ROM");
-				if (!rom_file_is(machine_rom[m], machines[m].size))
-					machine_rom[m][0] = '\0';
-			}
-		}
-	}
+	/* The CPU halted (a double bus error): as on a real ST, it stays so
+	   until reset. */
+	osd_notify("The ST has halted: reset it from the menu (F12)");
 }
 
-/* The machine to start: machine= if its ROM is there, else the first that
-   has one. */
-static int choose_machine(void)
+/* Hatari's settings dialog (its F12, and when the TOS can't be loaded):
+   BMAtariST's menu does that. */
+int Dialog_MainDlg(bool *bReset, bool *bLoadedSnapshot)
 {
-	const char *want = host_option("machine", "auto");
-	int m;
-	for (m = 0; m < BMAPPLE2_MACHINES; m++)
-		if (strcmp(want, machines[m].key) == 0 && machine_rom[m][0] != '\0')
-			return m;
-	for (m = 0; m < BMAPPLE2_MACHINES; m++)
-		if (machine_rom[m][0] != '\0')
-			return m;
-	return -1;
+	*bReset = false;
+	*bLoadedSnapshot = false;
+	return 0;
 }
 
-int bmapple2_machine(void)
+char *DlgFloppy_ShortCutSel(const char *path_and_name, char **zip_path)
 {
-	return current_machine;
+	return NULL;
 }
 
-const char *bmapple2_machine_name(int machine)
-{
-	return machine >= 0 && machine < BMAPPLE2_MACHINES ? machines[machine].name : "none";
-}
+/* ---- Starting ----------------------------------------------------------- */
 
-int bmapple2_machine_available(int machine)
-{
-	return machine >= 0 && machine < BMAPPLE2_MACHINES && machine_rom[machine][0] != '\0';
-}
-
-const char *bmapple2_rom_file(void)
-{
-	return current_machine >= 0 ? machine_rom[current_machine] : NULL;
-}
-
-/* The machine's own speed: 1 MHz for an Apple IIe, the IIgs's 2.8 MHz,
-   rather than KEGS's default of an 8 MHz ZipGS accelerator, which the Pi 2
-   and 3 can't always keep up with, and which runs old games too fast. */
-static void set_machine_speed(int machine)
-{
-	g_limit_speed = machine == BMAPPLE2_IIE ? 1 : 2;
-}
-
-/* Switches to MACHINE (its ROM is loaded, as F4's ROM File does) and
-   starts it, and keeps the choice for the next boot. */
-void bmapple2_set_machine(int machine)
-{
-	if (!bmapple2_machine_available(machine) || machine == current_machine)
-		return;
-	current_machine = machine;
-	if (!host_option_set("machine", machines[machine].key) || !host_options_save())
-		printf("BMApple2: cannot save machine= in bmapple2.cfg\n");
-	printf("BMApple2: machine %s, ROM %s\n", machines[machine].name, machine_rom[machine]);
-	cfg_file_update_rom(machine_rom[machine]);
-	set_machine_speed(machine);
-	bmapple2_restart();
-	/* A IIe has no border colour ($C034): a IIgs's would stay. */
-	if (machine == BMAPPLE2_IIE) {
-		clock_write_c034(g_c034_val & ~0xf);
-		change_border_color(g_cur_dfcyc, 0);
-	}
-	clear_framebuffer();
-	video_set_x_refresh_needed(main_kimage, 1);
-}
-
-void bmapple2_kegs_config(void)
-{
-	cfg_toggle_config_panel();
-}
-
-/* ---- Input --------------------------------------------------------------- */
-
-static int open_menu;
-static int pad_last_menu[HOST_PADS];
-static int pad_last_keys[HOST_PADS];
-
-/* Gamepad buttons that are keys, as in BMCoco: X is Space, Y is Return. */
-static const struct {
-	int bit;
-	int adb;
-} pad_keys[] = {
-	{HOST_PAD_X, 0x31},
-	{HOST_PAD_Y, 0x24},
-};
-
-static void process_input(void)
-{
-	int usage, pressed, pad, dx, dy, buttons;
-
-	while (host_key_event(&usage, &pressed)) {
-		int adb;
-		/* The power key: Shut Down (the Pi 400 sends it for Fn+F10). */
-		if (usage == USAGE_POWER) {
-			if (pressed)
-				bmapple2_request_power(1);
-			continue;
-		}
-		if (usage == KEY_MENU) {
-			if (pressed)
-				open_menu = TRUE;
-			continue;
-		}
-		adb = bmapple2_usage_to_adb(usage);
-		if (adb >= 0)
-			adb_physical_key_update(main_kimage, adb, 0, !pressed);
-	}
-
-	if (host_mouse_read(&dx, &dy, &buttons)) {
-		/* 0x1000: x and y are deltas (adb.c). Only the left button: the
-		   IIgs mouse has one. KEGS takes its desktop versions' middle
-		   button (bit 1) as a request to stop in its debugger, and the
-		   right (bit 2) as one to change speed; the USB mouse gives
-		   right as bit 1 and middle as bit 2, so passed on as they
-		   were, the right button froze the emulation and the wheel's
-		   click changed its speed. */
-		adb_update_mouse(main_kimage, dx, dy, buttons & 1, 0x1000 | 1);
-	}
-
-	/* Gamepad Home, or Select and Start together, open the menu (A, B and
-	   the stick are the joystick: joystick.c). */
-	for (pad = 0; pad < HOST_PADS; pad++) {
-		int state = host_pad_state(pad);
-		int menu;
-		if (state < 0)
-			state = 0;
-		menu = (state & HOST_PAD_HOME)
-		       || ((state & HOST_PAD_SELECT) && (state & HOST_PAD_START));
-		if (menu && !pad_last_menu[pad])
-			open_menu = TRUE;
-		pad_last_menu[pad] = menu;
-	}
-
-	/* X and Y, from any gamepad. */
-	for (pad = 0; pad < HOST_PADS; pad++) {
-		int state = host_pad_state(pad);
-		unsigned k;
-		if (state < 0)
-			state = 0;
-		for (k = 0; k < sizeof pad_keys / sizeof pad_keys[0]; k++) {
-			int down = (state & pad_keys[k].bit) != 0;
-			if (down != ((pad_last_keys[pad] & pad_keys[k].bit) != 0))
-				adb_physical_key_update(main_kimage, pad_keys[k].adb, 0, !down);
-		}
-		pad_last_keys[pad] = state;
-	}
-}
-
-/* ---- Main loop ------------------------------------------------------------- */
-
-/* Shows the web UI's address once the network is up. */
 static void show_network_address(void)
 {
 	static int shown;
@@ -921,124 +664,169 @@ static void show_network_address(void)
 	}
 }
 
-void bmapple2_main(void)
+static void stopped(const char *why)
 {
-	static char cfg_path[256];
-	static char *argv[8];
-	int argc = 0, pitch;
-	double last_second;
+	char text[256];
+	snprintf(text, sizeof text, "%s. The log (see the User Guide) says more.", why);
+	osd_open();
+	osd_message(text, FALSE);
+	for (;;) {
+		bmatarist_idle();
+		host_video_present(TRUE);
+	}
+}
 
-	if (host_video_init(FB_W, FB_H, &fb_pixels, &pitch) != 0) {
-		printf("BMApple2: no display\n");
+void bmatarist_main(void)
+{
+	static char *argv[16];
+	static char rate_arg[16];
+	static char tos_arg[256];
+	struct stat st;
+	int argc = 0, pitch;
+	unsigned rate;
+	double last_second, frame_due = 0.0;
+	int vbls_at_second;
+	int first_frame = TRUE;
+
+	if (host_video_init(BMATARIST_FB_W, BMATARIST_FB_H, &fb_pixels, &pitch) != 0) {
+		printf("BMAtariST: no display\n");
 		for (;;)
 			host_sleep_us(1000000);
 	}
 	fb_pitch_px = pitch / 2;
 	clear_framebuffer();
+	bmatarist_screen_init(fb_pixels, fb_pitch_px);
 	apply_view();
-	/* Where the host can set the video mode (the Pi 4), the display runs
-	   at the IIgs's (and KEGS's IIe's) 59.92 Hz, then it is timed. */
-	host_display_match_rate(VBL_RATE);
+	host_display_match_rate(50.0);
 	measure_refresh_rate();
-	update_sync_mode();
 
-	/* config.kegs (disks, settings) in the card's root; the ROM found. */
-	snprintf(cfg_path, sizeof(cfg_path), "%s%sconfig.kegs", bmapple2_sd_root(),
-	         bmapple2_sd_root()[strlen(bmapple2_sd_root()) - 1] == '/' ? "" : "/");
-	create_config(cfg_path);
-	argv[argc++] = "bmapple2";
-	if (getenv("BMAPPLE2_KEGS_NOIGNHALT"))
-		argv[argc++] = "-noignhalt";
-	argv[argc++] = "-cfg";
-	argv[argc++] = cfg_path;
-	find_roms();
-	current_machine = choose_machine();
-	if (current_machine >= 0) {
-		argv[argc++] = "-rom";
-		argv[argc++] = machine_rom[current_machine];
-		printf("BMApple2: %s, ROM %s\n", machines[current_machine].name,
-		       machine_rom[current_machine]);
+	/* Hatari's home folder (where it would keep its files) is the card. */
+	setenv("HOME", bmatarist_sd_root(), 1);
+	bmatarist_card_path(hatari_cfg, sizeof hatari_cfg, "", "hatari.cfg");
+
+	find_tos();
+	rate = bmatarist_sound_open();
+
+	argv[argc++] = "hatari";
+	argv[argc++] = "--configfile";
+	argv[argc++] = hatari_cfg;
+	/* Sound at the output's rate (it's fixed: 44.1 kHz on the Pi Zero to
+	   3, 48 kHz over the Pi 4 and 5's HDMI). */
+	if (rate != 0) {
+		snprintf(rate_arg, sizeof rate_arg, "%u", rate);
+		argv[argc++] = "--sound";
+		argv[argc++] = rate_arg;
 	} else {
-		/* KEGS then opens its configuration screen to choose one. */
-		printf("BMApple2: no Apple IIgs or IIe ROM in roms/ (see roms/ROMS.txt)\n");
+		argv[argc++] = "--sound";
+		argv[argc++] = "off";
 	}
-	argv[argc] = NULL;
-	if (parse_argv(argc, argv, 1) != 0)
-		printf("BMApple2: KEGS didn't like its arguments\n");
-
-	g_audio_enable = option_on("sound", TRUE) ? 1 : 0;
-
-	/* 0xRRGGBB pixels (see the top). */
-	video_set_red_mask(0xff0000);
-	video_set_green_mask(0x00ff00);
-	video_set_blue_mask(0x0000ff);
-	video_set_alpha_mask(0);
-	/* The Apple II's 16 colours, from the masks (as KEGS's front ends do);
-	   Super Hi-Res works its own out as it goes. */
-	video_set_palette();
-
-	/* The joystick is the gamepads and GPIO joysticks (joystick.c), KEGS's
-	   "Native Joystick 1", rather than its default of the keypad. Set
-	   before KEGS reads config.kegs, it is the default, so a choice made
-	   in KEGS's settings (F4) still sticks. */
-	g_joystick_type = 2;
-
-	/* The machine's own speed (set_machine_speed()). As with the joystick,
-	   a speed chosen with F6 or F4 still sticks. */
-	set_machine_speed(current_machine);
-
-	if (kegs_init(32, FB_W, FB_H, 1) != 0) {
-		osd_open();
-		osd_message("KEGS did not start. The log (see the User Guide) says why.", FALSE);
-		for (;;) {
-			bmapple2_idle();
-			host_video_present(TRUE);
+	/* A new card's first start, or a TOS image that's gone: the TOS
+	   BMAtariST found. Hatari keeps it in hatari.cfg. */
+	if (stat(hatari_cfg, &st) != 0) {
+		/* --configfile wants the file to be there: an empty one, which
+		   Hatari fills in when it saves its settings. */
+		const char *tos = default_tos();
+		FILE *f = fopen(hatari_cfg, "w");
+		if (f != NULL)
+			fclose(f);
+		else
+			printf("BMAtariST: cannot create %s\n", hatari_cfg);
+		if (tos != NULL) {
+			snprintf(tos_arg, sizeof tos_arg, "%s", tos);
+			argv[argc++] = "--tos";
+			argv[argc++] = tos_arg;
+		}
+	} else if (!cfg_tos_exists(hatari_cfg)) {
+		const char *tos = default_tos();
+		if (tos != NULL) {
+			printf("BMAtariST: the TOS in hatari.cfg isn't there, using %s\n", tos);
+			snprintf(tos_arg, sizeof tos_arg, "%s", tos);
+			argv[argc++] = "--tos";
+			argv[argc++] = tos_arg;
 		}
 	}
-	main_kimage = video_get_kimage(0);
-	video_set_active(main_kimage, 1);
-	set_monitor(monitor_from_option());
-	video_update_scale(main_kimage, FB_W, FB_H, 1);
-	/* The whole picture, status lines included (see FB_H). */
-	/* The status lines come and go (F5), so leave room for many. */
-	kegs_height = main_kimage->a2_height + 256;
-	if (kegs_height < 1024)
-		kegs_height = 1024;
-	if (main_kimage->a2_width_full > FB_W)
-		printf("BMApple2: KEGS's picture is %d wide, expected %d\n",
-		       main_kimage->a2_width_full, FB_W);
-	kegs_pixels = calloc((size_t) FB_W * kegs_height, sizeof(*kegs_pixels));
+	argv[argc] = NULL;
+	if (tos_count == 0)
+		printf("BMAtariST: no TOS image in tos/ (see tos/README.txt)\n");
+
+	Main_Init(argc, argv);
+	if (bQuitProgram || !bTosImageLoaded)
+		stopped(error_text[0] ? error_text : "Hatari did not start");
+	/* Settings given on the command line (the TOS) are kept. */
+	Configuration_Save();
+
+	Main_UnPauseEmulation();
+	match_display_rate();
+	apply_view();
 
 	last_second = host_time();
+	vbls_at_second = nVBLs;
 	for (;;) {
 		double now;
 
-		process_input();
-		if (open_menu) {
-			open_menu = FALSE;
-			adb_kbd_repeat_off();
-			bmapple2_menu();
-			video_set_x_refresh_needed(main_kimage, 1);
+		/* A frame: the CPU runs until the next VBL (timing.c). After a
+		   reset (Hatari's UAE_RESET, or a CPU mode change), m68k_go()
+		   restarts the CPU core as Hatari's other front ends do; going
+		   on with m68k_run() would run at the old program counter. */
+		if (first_frame) {
+			first_frame = FALSE;
+			UAE_Set_Quit_Reset(false);
+			m68k_go(true);
+		} else if (quit_program == UAE_RESET || quit_program == UAE_RESET_HARD
+		           || (regs.spcflags & SPCFLAG_MODE_CHANGE)) {
+			m68k_go(true);
+		} else {
+			M68000_UnsetSpecial(SPCFLAG_BRK);
+			quit_program = 0;
+			m68k_run();
 		}
+		if (bQuitProgram)
+			stopped(error_text[0] ? error_text : "Hatari stopped");
 
-		if (run_16ms() != 0) {
-			osd_open();
-			osd_message("KEGS stopped. The log (see the User Guide) says why.", FALSE);
-			for (;;) {
-				bmapple2_idle();
-				host_video_present(TRUE);
+		if (!osd_view) {
+			bmatarist_screen_copy(FALSE);
+			bmatarist_draw_disk_activity(fb_pixels, fb_pitch_px,
+			                             BMATARIST_FB_W, BMATARIST_FB_H);
+			{
+				int w, h;
+				double aspect;
+				bmatarist_screen_view(&w, &h, &aspect);
+				if (osd_draw_notification(fb_pixels, fb_pitch_px, w, h))
+					bmatarist_screen_dirty_bottom();
 			}
 		}
-		startup_slot_continue();
-		monitor_switch();
-		copy_picture();
-		draw_disk_activity();
-		osd_draw_notification(fb_pixels, fb_pitch_px, FB_W, FB_H);
 		host_video_present(vsync_lock);
+		if (!vsync_lock) {
+			/* Paced by the clock instead. */
+			double period = 1.0 / st_rate();
+			now = host_time();
+			if (frame_due == 0.0 || now - frame_due > 0.25)
+				frame_due = now;
+			frame_due += period;
+			if (frame_due > now)
+				host_sleep_us((unsigned) ((frame_due - now) * 1000000.0));
+		}
+
+		if (bmatarist_menu_requested()) {
+			bmatarist_release_keys();
+			Main_PauseEmulation(false);
+			bmatarist_menu();
+			Main_UnPauseEmulation();
+			apply_view();
+			bmatarist_screen_copy(TRUE);
+			frame_due = 0.0;
+			last_second = host_time();
+			vbls_at_second = nVBLs;
+		}
 
 		now = host_time();
 		if (now - last_second >= 1.0) {
+			speed_percent = (int) ((nVBLs - vbls_at_second) / (now - last_second)
+			                       / st_rate() * 100.0 + 0.5);
 			last_second = now;
+			vbls_at_second = nVBLs;
+			match_display_rate();
+			write_back_floppies(now);
 			sync_files();
 			show_network_address();
 		}

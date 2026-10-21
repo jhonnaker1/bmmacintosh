@@ -556,7 +556,7 @@ body.modal-open { overflow: hidden; }
 
 /* ---------- name ---------- */
 
-/* BMApple2 as an Apple II shows inverse text on a green screen: dark
+/* BMAtariST as an Apple II shows inverse text on a green screen: dark
    letters on a green block, with the colour bar under it. */
 .sidebar-name, .welcome-text {
   font-family: var(--mono);

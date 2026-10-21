@@ -1,24 +1,24 @@
 /*
- * osd.h - BMApple2's on-screen display: menus, file browser, text entry.
+ * osd.h - BMAtariST's on-screen display: menus, file browser, text entry.
  *
- * BMApple2's own menu (network, sound, video, power) is drawn straight into
- * the emulator's frame buffer, in the style of an Apple II text screen.
- * KEGS's configuration screen (F4: disks, ROM, machine settings) is KEGS's
- * own. While the display is open the emulation is paused.
+ * Hatari's own settings dialog belongs to its SDL front end, so BMAtariST
+ * draws its own menu (everything about the emulated ST, and BMAtariST's
+ * settings), straight into the display's frame buffer, in the style of a
+ * GEM dialog. While the display is open the emulation is paused.
  *
- * This file is part of BMApple2, a bare metal Apple II and IIgs emulator for
+ * This file is part of BMAtariST, a bare metal Atari ST emulator for
  * the Raspberry Pi. See LICENSE for licensing details.
  */
 
-#ifndef BMAPPLE2_OSD_H_
-#define BMAPPLE2_OSD_H_
+#ifndef BMATARIST_OSD_H_
+#define BMATARIST_OSD_H_
 
 #include <stddef.h>
 #include <stdint.h>
 
 /* The text grid. */
-#define OSD_COLS 40
-#define OSD_ROWS 23
+#define OSD_COLS 64
+#define OSD_ROWS 28
 
 /* Keys from osd_read_key(): printable characters are themselves. */
 enum {
@@ -89,10 +89,14 @@ int osd_confirm(const char *title, const char *question);
 int osd_browse(const char *title, char *dir, size_t dir_size,
                const char *const exts[], char *path, size_t path_size);
 
+/* Lets a folder be chosen, the same way. Returns 1 with it in PATH. */
+int osd_browse_folder(const char *title, char *dir, size_t dir_size,
+                      char *path, size_t path_size);
 /* Draws a one line message over the emulator's picture, for a few seconds. */
 void osd_notify(const char *text);
 /* Called by the video output each frame: draws the notification, if any. */
-void osd_draw_notification(uint16_t *fb, int pitch_px, int w, int h);
+/* Returns TRUE if it drew (or has just stopped drawing) over the picture. */
+int osd_draw_notification(uint16_t *fb, int pitch_px, int w, int h);
 
 /* The lines at the bottom of the picture the notification and the disk
    activity line are drawn in. */
@@ -102,4 +106,4 @@ void osd_draw_notification(uint16_t *fb, int pitch_px, int w, int h);
 void osd_draw_disk_status(uint16_t *fb, int pitch_px, int w, int h,
                           const char *text, int light, int error);
 
-#endif /* BMAPPLE2_OSD_H_ */
+#endif /* BMATARIST_OSD_H_ */

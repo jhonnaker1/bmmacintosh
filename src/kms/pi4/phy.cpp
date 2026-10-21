@@ -3,7 +3,7 @@
 //
 // See phy.h for the BCM2711 HDMI PHY calculations and their source.
 //
-// This file is part of BMApple2, a bare metal Apple II and IIgs emulator for
+// This file is part of BMAtariST, a bare metal Atari ST emulator for
 // the Raspberry Pi. See LICENSE for licensing details.
 //
 

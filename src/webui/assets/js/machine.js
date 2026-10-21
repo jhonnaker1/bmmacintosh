@@ -1,4 +1,4 @@
-// The machine BMApple2 is running and what the web UI can do on it, from the
+// The machine BMAtariST is running and what the web UI can do on it, from the
 // "machine" and "caps" of /api/status (webui_machine.cpp on the device).
 
 import * as api from "./api.js";

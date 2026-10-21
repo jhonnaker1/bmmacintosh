@@ -109,7 +109,7 @@ then
     fi
 fi
 
-# The PC tests (tools/hostsim without real ROMs: set BMAPPLE2_ROMS to test
+# The PC tests (tools/hostsim without real ROMs: set BMATARIST_ROMS to test
 # with them too).
 if [ "$SKIP_TESTS" -eq 0 ]
 then
@@ -169,9 +169,9 @@ do
     then
         if [ "$board" = "pi4" ] || [ "$board" = "pi5" ]
         then
-            export BMAPPLE2_AARCH=64
+            export BMATARIST_AARCH=64
         else
-            export BMAPPLE2_AARCH=32
+            export BMATARIST_AARCH=32
         fi
         source "$SRC_DIR/get_gnu_toolchain.sh"
         make -j"$(nproc)"

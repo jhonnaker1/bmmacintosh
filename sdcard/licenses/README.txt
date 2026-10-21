@@ -1,7 +1,7 @@
 Licences
 ========
 
-BMApple2 itself is under the GNU General Public License version 3
+BMAtariST itself is under the GNU General Public License version 3
 (LICENSE.txt in the root of the card). It includes code from other
 projects; this folder has their notices and licences:
 
@@ -24,5 +24,5 @@ projects; this folder has their notices and licences:
 The Raspberry Pi firmware and Wi-Fi firmware licences are with the
 firmware (LICENCE.broadcom, COPYING.linux, and the firmware folder).
 
-All third-party software in BMApple2:
-https://github.com/jhonnaker1/bmapple2/blob/main/docs/THIRD_PARTY.md
+All third-party software in BMAtariST:
+https://github.com/jhonnaker1/bmatarist/blob/main/docs/THIRD_PARTY.md

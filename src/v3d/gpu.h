@@ -23,12 +23,12 @@
 //  - Circle, include/circle/memory.h (HEAP_DMA30), synchronize64.h (cache
 //    maintenance).
 //
-// This file is part of BMApple2, a bare metal Apple II and IIgs emulator for
+// This file is part of BMAtariST, a bare metal Atari ST emulator for
 // the Raspberry Pi. See LICENSE for licensing details.
 //
 
-#ifndef BMAPPLE2_V3D_GPU_H_
-#define BMAPPLE2_V3D_GPU_H_
+#ifndef BMATARIST_V3D_GPU_H_
+#define BMATARIST_V3D_GPU_H_
 
 #include <stdint.h>
 #include <stddef.h>

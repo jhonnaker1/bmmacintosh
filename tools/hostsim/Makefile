@@ -6,41 +6,72 @@
 #
 
 ROOT := ../..
-KEGS := $(ROOT)/third_party/kegs/src
-include $(ROOT)/src/port/kegs.mk
+HATARI := $(ROOT)/third_party/hatari/src
+ZLIB := $(ROOT)/third_party/zlib
+include $(ROOT)/src/port/hatari.mk
 
 CC ?= cc
-CFLAGS = -O2 -g -std=gnu11 -I $(KEGS) -I $(ROOT)/src/port -DBMAPPLE2_HOST_LIBC
-
+HOSTCC ?= cc
 OUT := build
-OBJS := $(addprefix $(OUT)/kegs/,$(KEGS_SRCS:.c=.o) $(KEGS_HOST_SRCS:.c=.o)) \
-        $(OUT)/port/platform.o $(OUT)/port/keymap.o $(OUT)/port/joystick.o \
-        $(OUT)/port/snddrv.o $(OUT)/port/menu.o $(OUT)/port/osd.o \
-        $(OUT)/port/scc_socket_driver.o \
+GEN := $(OUT)/gen
+
+HATARI_INCLUDES = -I $(ROOT)/src/port -I $(HATARI)/includes -I $(HATARI)/debug \
+                  -I $(HATARI)/falcon -I $(HATARI)/cpu -I $(HATARI)/cpu/softfloat \
+                  -I $(HATARI) -I $(GEN) -I $(ZLIB)
+CFLAGS = -O2 -g -DBMATARIST_HOST_LIBC
+HATARI_FLAGS = $(CFLAGS) $(HATARI_CFLAGS) $(HATARI_INCLUDES) \
+               -include $(ROOT)/src/port/compat/hatari_prefix.h
+
+PORT_SRCS = platform.c menu.c osd.c posix_extra.c $(HATARI_PORT_SRCS)
+
+OBJS := $(addprefix $(OUT)/hatari/,$(HATARI_CORE_SRCS:.c=.o)) \
+        $(addprefix $(OUT)/hatari/cpu/,$(HATARI_CPU_SRCS:.c=.o)) \
+        $(addprefix $(OUT)/gen/,$(HATARI_CPUGEN_SRCS:.c=.o) $(HATARI_CPUDEFS_SRC:.c=.o)) \
+        $(addprefix $(OUT)/hatari/falcon/,$(HATARI_FALCON_SRCS:.c=.o)) \
+        $(addprefix $(OUT)/hatari/debug/,$(HATARI_DEBUG_SRCS:.c=.o)) \
+        $(addprefix $(OUT)/zlib/,$(ZLIB_SRCS:.c=.o)) \
+        $(addprefix $(OUT)/port/,$(PORT_SRCS:.c=.o)) \
         $(OUT)/host_sim.o $(OUT)/live.o
 
-all: $(OUT)/bmapple2_sim
+all: $(OUT)/bmatarist_sim
 
-$(OUT)/bmapple2_sim: $(OBJS)
+$(OUT)/bmatarist_sim: $(OBJS)
 	$(CC) -o $@ $(OBJS) -lm
 
-$(OUT)/kegs/clock.o: $(KEGS)/clock.c
-	@mkdir -p $(dir $@)
-	@$(CC) $(CFLAGS) $(KEGS_CLOCK_RENAMES) -w -c -o $@ $<
+# The CPU core's generated sources, as Hatari's build makes them
+# (src/cpu/CMakeLists.txt).
+$(GEN)/build68k: $(HATARI)/cpu/build68k.c $(HATARI)/cpu/writelog.c
+	@mkdir -p $(GEN)
+	$(HOSTCC) -I $(HATARI)/cpu -I $(HATARI)/includes -I $(ROOT)/src/port -o $@ $^
 
-$(OUT)/kegs/%.o: $(KEGS)/%.c
-	@mkdir -p $(dir $@)
-	@$(CC) $(CFLAGS) -w -c -o $@ $<
+$(GEN)/cpudefs.c: $(GEN)/build68k $(HATARI)/cpu/table68k
+	$(GEN)/build68k < $(HATARI)/cpu/table68k > $@
 
-# KEGS's code, changed: KEGS's warnings are its own.
-$(OUT)/port/scc_socket_driver.o: $(ROOT)/src/port/scc_socket_driver.c $(ROOT)/src/host.h
-	@mkdir -p $(dir $@)
-	@$(CC) $(CFLAGS) -w -c -o $@ $<
+$(GEN)/gencpu: $(GEN)/cpudefs.c $(HATARI)/cpu/gencpu.c $(HATARI)/cpu/readcpu.c
+	$(HOSTCC) -I $(HATARI)/cpu -I $(HATARI)/includes -I $(ROOT)/src/port -o $@ $^
 
-$(OUT)/port/%.o: $(ROOT)/src/port/%.c $(ROOT)/src/port/bmapple2.h \
-                 $(ROOT)/src/port/osd.h $(ROOT)/src/host.h
+# gencpu writes into the current folder.
+$(GEN)/cpustbl.c: $(GEN)/gencpu
+	cd $(GEN) && ./gencpu > /dev/null
+
+$(addprefix $(GEN)/,$(filter-out cpustbl.c,$(HATARI_CPUGEN_SRCS))) $(GEN)/cputbl.h: $(GEN)/cpustbl.c
+
+$(OUT)/gen/%.o: $(GEN)/%.c
+	@$(CC) $(HATARI_FLAGS) -c -o $@ $<
+
+$(OUT)/hatari/%.o: $(HATARI)/%.c $(GEN)/cputbl.h
 	@mkdir -p $(dir $@)
-	$(CC) $(CFLAGS) -Wall -Wextra -Wno-unused-parameter -c -o $@ $<
+	@$(CC) $(HATARI_FLAGS) -c -o $@ $<
+
+$(OUT)/zlib/%.o: $(ZLIB)/%.c
+	@mkdir -p $(dir $@)
+	@$(CC) $(CFLAGS) $(ZLIB_CFLAGS) -c -o $@ $<
+
+$(OUT)/port/%.o: $(ROOT)/src/port/%.c $(ROOT)/src/port/bmatarist.h \
+                 $(ROOT)/src/port/osd.h $(ROOT)/src/host.h $(GEN)/cputbl.h
+	@mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) -std=gnu11 $(HATARI_INCLUDES) -include $(ROOT)/src/port/compat/hatari_prefix.h \
+	      -Wall -Wextra -Wno-unused-parameter -Wno-sign-compare -c -o $@ $<
 
 $(OUT)/host_sim.o: host_sim.c live.h $(ROOT)/src/host.h
 	@mkdir -p $(dir $@)

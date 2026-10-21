@@ -1,52 +1,47 @@
 /*
- * snddrv.c - KEGS's sound output for BMApple2.
+ * audio.c - Hatari's sound output for BMAtariST.
  *
- * Replaces KEGS's sound_driver.c, which sends the sound to a child process,
- * PulseAudio, Core Audio or Windows, with the same functions writing to the
- * kernel's sound output (host.h). KEGS's sound.c fills a ring of
- * SOUND_SHM_SAMP_SIZE stereo samples (16 bits left, 16 bits right, in one
- * 32-bit word) and calls snddrv_send_sound() once a frame with how many to
- * play, or how many zeroes when the IIgs is silent; this is
- * child_sound_playit() from sound_driver.c, without the child.
+ * Replaces Hatari's src/sdl/audio.c (SDL's audio callback) with the kernel's
+ * sound output (host.h), as src/retro/audio.c does for libretro: Hatari's
+ * sound.c mixes the YM2149, the STE's DMA sound and the Falcon's into
+ * AudioMixBuffer (16-bit stereo) as the emulation goes, and calls
+ * Audio_Unlock() after each batch; the batch is written out from there.
  *
  * The emulation runs at the display's pace or a timer's, never quite the
- * sound output's (a IIgs's 59.92 Hz locked to a 60 Hz display is 0.13%
- * fast), so the output is kept about half full: the sound is squeezed or
+ * sound output's (an ST's 50.05 Hz locked to a 50 Hz display is 0.1% fast),
+ * so the output is kept about half full: the sound is squeezed or
  * stretched a little, the more the further the buffer is from half full,
- * up to 2% (as BMCoco does). Dropping a whole sample, or what doesn't fit,
- * clicks.
+ * up to 2% (as BMCoco and BMApple2 do). Dropping a whole sample, or what
+ * doesn't fit, clicks.
  *
- * This file is part of BMApple2, a bare metal Apple II and IIgs emulator for
- * the Raspberry Pi. See LICENSE for licensing details.
+ * This file is part of BMAtariST, a bare metal Atari ST emulator for the
+ * Raspberry Pi. See LICENSE for licensing details.
  */
 
-#include "defc.h"
+const char Audio_fileid[] = "BMAtariST audio.c";
+
+#include "main.h"
+#include "audio.h"
+#include "configuration.h"
 #include "sound.h"
 
 #include "../host.h"
-#include "bmapple2.h"
+#include "bmatarist.h"
 
-#define AO_RATE 48000
+bool bSoundWorking = false;
+int SoundBufferSize = 1024 / 4;      /* in samples: Hatari's lead (sound.c) */
+int SdlAudioBufferSize = 0;
+int pulse_swallowing_count = 0;
 
-extern int g_audio_enable;
-extern int g_audio_rate;
-extern word32 *g_sound_shm_addr;
-
-void sound_set_audio_rate(int rate);
-
-/* Read by sim65816.c. */
-int g_preferred_rate = AO_RATE;
-
-static int ring_pos;            /* next sample to play in g_sound_shm_addr */
-static unsigned out_rate;       /* 0: no sound */
-static unsigned out_latency;    /* frames */
+static bool playing;
+static unsigned out_rate;            /* 0: no sound */
+static unsigned out_latency;         /* frames */
 static int16_t silence[2048 * 2];
-static int volume = -1;                  /* 0-100, -1 until read */
-static int16_t scaled[1024 * 2];
+static int volume = -1;              /* 0-100, -1 until read */
 
-/* The volume BMApple2 plays at, on top of the IIgs's own (its Control
-   Panel's; a IIe has none). */
-int bmapple2_volume(void)
+/* ---- Volume ---------------------------------------------------------------- */
+
+int bmatarist_volume(void)
 {
 	if (volume < 0) {
 		volume = host_option_int("volume", 100);
@@ -58,19 +53,20 @@ int bmapple2_volume(void)
 	return volume;
 }
 
-void bmapple2_set_volume(int v)
+void bmatarist_set_volume(int v)
 {
 	char text[8];
 	volume = v < 0 ? 0 : v > 100 ? 100 : v;
 	snprintf(text, sizeof text, "%d", volume);
 	if (!host_option_set("volume", text) || !host_options_save())
-		printf("BMApple2: cannot save volume= in bmapple2.cfg\n");
+		printf("BMAtariST: cannot save volume= in bmatarist.cfg\n");
 }
 
 /* N stereo frames to the output, at the volume. */
 static void write_frames(const int16_t *samples, unsigned n)
 {
-	int v = bmapple2_volume();
+	static int16_t scaled[1024 * 2];
+	int v = bmatarist_volume();
 	if (v >= 100) {
 		host_sound_write(samples, n);
 		return;
@@ -85,7 +81,11 @@ static void write_frames(const int16_t *samples, unsigned n)
 	}
 }
 
-void bmapple2_sound_open(void)
+/* ---- Output ---------------------------------------------------------------- */
+
+#define AO_RATE 48000
+
+unsigned bmatarist_sound_open(void)
 {
 	unsigned ms = (unsigned) host_option_int("audio_buffer_ms", 60);
 	if (ms < 20)
@@ -93,16 +93,16 @@ void bmapple2_sound_open(void)
 	if (ms > 500)
 		ms = 500;
 	/* The output may run at another rate (the VideoCore's 44.1 kHz on the
-	   Pi Zero to 3): KEGS then makes its sound at that rate, and the
-	   buffer is counted in its frames. The latency is asked for in
-	   44.1 kHz frames (host.h). */
+	   Pi Zero to 3): Hatari then makes its sound at that rate. The
+	   latency is asked for in 44.1 kHz frames (host.h). */
 	out_rate = host_sound_open(AO_RATE, 2, 44100 * ms / 1000);
 	out_latency = (out_rate ? out_rate : AO_RATE) * ms / 1000;
 	if (out_rate == 0)
-		printf("BMApple2: no sound\n");
+		printf("BMAtariST: no sound\n");
+	return out_rate;
 }
 
-void bmapple2_feed_silence(void)
+void bmatarist_feed_silence(void)
 {
 	unsigned frames;
 	if (out_rate == 0)
@@ -183,8 +183,6 @@ static void play_chunk(const int16_t *samples, unsigned n)
 /* N stereo frames to the output. */
 static void play(const int16_t *samples, unsigned n)
 {
-	if (out_rate == 0)
-		return;
 	while (n > 0) {
 		unsigned m = n > PLAY_CHUNK ? PLAY_CHUNK : n;
 		play_chunk(samples, m);
@@ -193,43 +191,56 @@ static void play(const int16_t *samples, unsigned n)
 	}
 }
 
-void snddrv_init(void)
+/* ---- Hatari's audio functions ---------------------------------------------- */
+
+/* Hatari makes its sound at the output's rate: the platform layer passes
+   it with --sound, and out_rate is already known by then (it opens the
+   output first). */
+void Audio_Init(void)
 {
-	if (g_audio_enable == 0) {
-		sound_set_audio_rate(g_preferred_rate);
+	if (!ConfigureParams.Sound.bEnableSound) {
+		bSoundWorking = false;
 		return;
 	}
-	g_sound_shm_addr = calloc(SOUND_SHM_SAMP_SIZE, SAMPLE_CHAN_SIZE);
-	ring_pos = 0;
-	bmapple2_sound_open();
-	sound_set_audio_rate(out_rate ? (int) out_rate : g_preferred_rate);
+	bSoundWorking = true;
+	Audio_EnableAudio(ConfigureParams.Sound.bEnableSound);
 }
 
-void snddrv_shutdown(void)
+void Audio_UnInit(void)
+{
+	Audio_EnableAudio(false);
+	bSoundWorking = false;
+}
+
+void Audio_Lock(void)
 {
 }
 
-void snddrv_send_sound(int real_samps, int size)
+/* Some samples have just been made (sound.c): out with them. */
+void Audio_Unlock(void)
 {
-	if (g_audio_enable == 0 || g_sound_shm_addr == 0)
-		return;
-	if (real_samps) {
-		/* The ring may wrap. */
-		while (size > 0) {
-			int n = size;
-			if (ring_pos + n > SOUND_SHM_SAMP_SIZE)
-				n = SOUND_SHM_SAMP_SIZE - ring_pos;
-			play((const int16_t *) &g_sound_shm_addr[ring_pos], (unsigned) n);
-			ring_pos = (ring_pos + n) % SOUND_SHM_SAMP_SIZE;
-			size -= n;
-		}
-	} else {
-		/* Silence. */
-		ring_pos = (ring_pos + size) % SOUND_SHM_SAMP_SIZE;
-		while (size > 0) {
-			int n = size > 2048 ? 2048 : size;
-			play(silence, (unsigned) n);
-			size -= n;
+	int n = nGeneratedSamples;
+	int pos = AudioMixBuffer_pos_read;
+	if (playing && out_rate != 0) {
+		while (n > 0) {
+			int m = n;
+			if (pos + m > AUDIOMIXBUFFER_SIZE)
+				m = AUDIOMIXBUFFER_SIZE - pos;
+			play(&AudioMixBuffer[pos][0], (unsigned) m);
+			pos = (pos + m) & AUDIOMIXBUFFER_SIZE_MASK;
+			n -= m;
 		}
 	}
+	AudioMixBuffer_pos_read = (AudioMixBuffer_pos_read + nGeneratedSamples)
+	                          & AUDIOMIXBUFFER_SIZE_MASK;
+	nGeneratedSamples = 0;
+}
+
+void Audio_FreeSoundBuffer(void)
+{
+}
+
+void Audio_EnableAudio(bool bEnable)
+{
+	playing = bEnable && bSoundWorking;
 }

@@ -7,7 +7,7 @@
 //
 // Modified for BMA800XL: always built, with the BMA800XL host name,
 // version and power and reset requests; BMC64's profiles are removed.
-// Changed for BMApple2.
+// Changed for BMAtariST.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -24,7 +24,7 @@
 #ifndef _webui_h
 #define _webui_h
 
-// BMApple2 always builds the web UI.
+// BMAtariST always builds the web UI.
 #define BMC64_WEBUI 1
 
 class CNetSubSystem;

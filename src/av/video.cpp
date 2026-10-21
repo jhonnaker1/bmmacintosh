@@ -3,7 +3,7 @@
 //
 // See video.h for what this is and the sources it follows.
 //
-// This file is part of BMApple2, a bare metal Apple II and IIgs emulator for
+// This file is part of BMAtariST, a bare metal Atari ST emulator for
 // the Raspberry Pi. See LICENSE for licensing details.
 //
 
@@ -189,7 +189,7 @@ bool Pi4Video::Initialize(bool crt, bool smooth, bool curvature, Driver driver) 
     } else {
       // Sharp and smooth are scaled by the HVS; the CRT shader is drawn by
       // the ARM at up to 1080 lines and scaled the rest of the way.
-      CLogger::Get()->Write(FromVideo, LogNotice, "Picture by BMApple2's display lists on the HVS");
+      CLogger::Get()->Write(FromVideo, LogNotice, "Picture by BMAtariST's display lists on the HVS");
     }
   }
   FlushStartupLog();

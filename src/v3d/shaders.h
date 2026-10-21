@@ -5,12 +5,12 @@
 // headers, shader_*.h for V3D 4.2 or shader71_*.h for V3D 7.1, each
 // included once, in shaders.cpp.
 //
-// This file is part of BMApple2, a bare metal Apple II and IIgs emulator for
+// This file is part of BMAtariST, a bare metal Atari ST emulator for
 // the Raspberry Pi. See LICENSE for licensing details.
 //
 
-#ifndef BMAPPLE2_V3D_SHADERS_H_
-#define BMAPPLE2_V3D_SHADERS_H_
+#ifndef BMATARIST_V3D_SHADERS_H_
+#define BMATARIST_V3D_SHADERS_H_
 
 #include "shader.h"
 

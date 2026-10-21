@@ -1,17 +1,17 @@
 //
 // kernel.h
 //
-// The Circle kernel for BMApple2: brings up the hardware, then runs the
+// The Circle kernel for BMAtariST: brings up the hardware, then runs the
 // KEGS emulator on core 1 while core 0 services USB. The Pi Zero has
 // one core: the emulator runs on it, and USB is serviced by a task between
 // frames (as in BMC64's Pi Zero build).
 //
-// This file is part of BMApple2, a bare metal Apple II and IIgs emulator for
+// This file is part of BMAtariST, a bare metal Atari ST emulator for
 // the Raspberry Pi. See LICENSE for licensing details.
 //
 
-#ifndef BMAPPLE2_KERNEL_H_
-#define BMAPPLE2_KERNEL_H_
+#ifndef BMATARIST_KERNEL_H_
+#define BMATARIST_KERNEL_H_
 
 #include <SDCard/emmc.h>
 #include <circle/actled.h>

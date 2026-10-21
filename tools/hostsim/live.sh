@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# Runs BMApple2 in the host simulator in real time, shown in a web page:
+# Runs BMAtariST in the host simulator in real time, shown in a web page:
 #
 #   tools/hostsim/live.sh [ROM_DIRECTORY] [PORT]
 #
@@ -32,8 +32,8 @@ fi
 
 cd "$CARD" || exit 1
 while true; do
-    BMAPPLE2_LIVE=$PORT BMAPPLE2_CMDLINE="root=$CARD ${BMAPPLE2_CMDLINE:-}" \
-        "$HERE/build/bmapple2_sim" < /dev/null
+    BMATARIST_LIVE=$PORT BMATARIST_CMDLINE="root=$CARD ${BMATARIST_CMDLINE:-}" \
+        "$HERE/build/bmatarist_sim" < /dev/null
     status=$?
     [ $status -ne 0 ] && exit $status
     echo "[live] restarting"

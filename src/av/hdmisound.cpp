@@ -4,7 +4,7 @@
 // See hdmisound.h: Circle's HDMI sound driver (R. Stange, GPL 3), for
 // either HDMI port of the Pi 4 or 5.
 //
-// This file is part of BMApple2, a bare metal Apple II and IIgs emulator for
+// This file is part of BMAtariST, a bare metal Atari ST emulator for
 // the Raspberry Pi. See LICENSE for licensing details.
 //
 

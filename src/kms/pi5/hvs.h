@@ -3,21 +3,21 @@
 //
 // The Pi 5's direct display driver's use of the BCM2712's HVS: finds the
 // channel that feeds the HDMI port in use, and shows planes on it
-// through display lists BMApple2 writes itself, scaled by the HVS with its
+// through display lists BMAtariST writes itself, scaled by the HVS with its
 // own filter kernels. Frames are paced by the channel's frame counter.
 //
 // The firmware's live lists (on both channels) are read first, so that
-// BMApple2's display list words, prefetch buffer and line buffer stay
+// BMAtariST's display list words, prefetch buffer and line buffer stay
 // clear of the memory they use. Display list memory used: 88 words from
 // 3072 (or 2048, or 1024): two kernels, then two list slots used in turn,
 // so the list being shown is never written to.
 //
-// This file is part of BMApple2, a bare metal Apple II and IIgs emulator for
+// This file is part of BMAtariST, a bare metal Atari ST emulator for
 // the Raspberry Pi. See LICENSE for licensing details.
 //
 
-#ifndef BMAPPLE2_KMS_PI5_HVS_H_
-#define BMAPPLE2_KMS_PI5_HVS_H_
+#ifndef BMATARIST_KMS_PI5_HVS_H_
+#define BMATARIST_KMS_PI5_HVS_H_
 
 #include "dlist.h"
 #include "../common/filter.h"
@@ -94,7 +94,7 @@ private:
   uint32_t m_nFirmwareList;    // the firmware's list start, to restore
   uint64_t m_nFirmwareAddress;
   unsigned m_nFirmwarePitch;
-  unsigned m_nRegion;          // BMApple2's display list memory (words)
+  unsigned m_nRegion;          // BMAtariST's display list memory (words)
   unsigned m_nKernelSmooth, m_nKernelSharp;
   unsigned m_nSlot[2];
   unsigned m_nNextSlot;        // list slot written next: 0 or 1
@@ -110,7 +110,7 @@ private:
   unsigned m_nUpmAreas;
   unsigned m_LbmAreas[MaxAreas][2];
   unsigned m_nLbmAreas;
-  unsigned m_nUpmHandle;       // BMApple2's prefetch handle
+  unsigned m_nUpmHandle;       // BMAtariST's prefetch handle
 };
 
 } // namespace kms

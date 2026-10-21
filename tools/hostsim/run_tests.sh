@@ -4,10 +4,10 @@
 # scripted tests and checks the results.
 #
 #   tools/hostsim/run_tests.sh
-#   BMAPPLE2_ROMS=/path/to/roms tools/hostsim/run_tests.sh
+#   BMATARIST_ROMS=/path/to/roms tools/hostsim/run_tests.sh
 #
 # The tests run a small stand-in ROM (make_test_rom.py), which KEGS runs as
-# an Apple IIe, since the real ROMs can't be shipped. With BMAPPLE2_ROMS set
+# an Apple IIe, since the real ROMs can't be shipped. With BMATARIST_ROMS set
 # to a folder holding a real IIgs ROM (ROM.01 or ROM.03, as in the SD card's
 # roms folder), the IIgs is tested too. Output, including screenshots
 # (.ppm), goes to tools/hostsim/out/.
@@ -17,7 +17,7 @@ set -u
 
 HERE=$(cd "$(dirname "$0")" && pwd)
 OUT=$HERE/out
-SIM=$HERE/build/bmapple2_sim
+SIM=$HERE/build/bmatarist_sim
 
 make -s -C "$HERE" -j"$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 2)" || exit 1
 
@@ -35,8 +35,8 @@ run() {
     local name=$1 refresh=$2 roms=$3 cmdline=$4 script=$5
     mkdir -p "$OUT/$name"
     ln -s "$roms" "$OUT/$name/roms"
-    (cd "$OUT/$name" && printf "$script" | BMAPPLE2_REFRESH=$refresh \
-        BMAPPLE2_CMDLINE="root=. $cmdline" "$SIM" > log.txt 2>&1)
+    (cd "$OUT/$name" && printf "$script" | BMATARIST_REFRESH=$refresh \
+        BMATARIST_CMDLINE="root=. $cmdline" "$SIM" > log.txt 2>&1)
 }
 
 # check_log NAME REGEX MESSAGE: the log must contain REGEX
@@ -177,7 +177,7 @@ echo "Sound on a 60 Hz display, at 44.1 and 48 kHz"
 # VideoCore's 44.1 kHz and the Pi 4 and 5's 48 kHz. (Dropping a frame of
 # sound now and then filled it within a minute.)
 for rate in 44100 48000; do
-    BMAPPLE2_SIM_RATE=$rate run sound$rate 60 "$TESTROMS" "" '2400 audio\n2401 quit\n'
+    BMATARIST_SIM_RATE=$rate run sound$rate 60 "$TESTROMS" "" '2400 audio\n2401 quit\n'
     line=$(grep "audio written" "$OUT/sound$rate/log.txt" | tail -1)
     max=$(echo "$line" | sed 's/.*after write max \([0-9]*\).*/\1/')
     cap=$(grep "sound open" "$OUT/sound$rate/log.txt" | head -1 | sed 's/.*, \([0-9]*\) frames.*/\1/')
@@ -226,10 +226,10 @@ echo "Screen size"
 # Menu, Video, Screen Size, down two from 100% to 90%: saved as scale=0.90
 # (for a TV that cuts off the edges).
 run size 60 "$TESTROMS" "" "130 key $F10 1\n131 key $F10 0\n140 key $DOWN 1\n141 key $DOWN 0\n142 key $DOWN 1\n143 key $DOWN 0\n144 key $DOWN 1\n145 key $DOWN 0\n146 key $DOWN 1\n147 key $DOWN 0\n150 key $ENTER 1\n151 key $ENTER 0\n160 key $DOWN 1\n161 key $DOWN 0\n170 key $ENTER 1\n171 key $ENTER 0\n180 key $DOWN 1\n181 key $DOWN 0\n182 key $DOWN 1\n183 key $DOWN 0\n190 key $ENTER 1\n191 key $ENTER 0\n200 shot video.ppm\n201 quit\n"
-if grep -q "^scale=0.90" "$OUT/size/bmapple2.cfg" 2>/dev/null; then
+if grep -q "^scale=0.90" "$OUT/size/bmatarist.cfg" 2>/dev/null; then
     pass "size: Video > Screen Size 90% saved as scale=0.90"
 else
-    fail size "scale=0.90 not in bmapple2.cfg (see out/size/log.txt)"
+    fail size "scale=0.90 not in bmatarist.cfg (see out/size/log.txt)"
 fi
 
 echo "GPIO joysticks in the menu"
@@ -313,10 +313,10 @@ echo "Settings are saved"
 # Menu, Video, CRT Effect (on, three down past Monitor, Screen Size and
 # Frame Lock), close.
 run settings 60 "$TESTROMS" "" "120 key $F10 1\n121 key $F10 0\n130 key $DOWN 1\n131 key $DOWN 0\n132 key $DOWN 1\n133 key $DOWN 0\n134 key $DOWN 1\n135 key $DOWN 0\n136 key $DOWN 1\n137 key $DOWN 0\n140 key $ENTER 1\n141 key $ENTER 0\n150 key $DOWN 1\n151 key $DOWN 0\n152 key $DOWN 1\n153 key $DOWN 0\n154 key $DOWN 1\n155 key $DOWN 0\n160 key $ENTER 1\n161 key $ENTER 0\n170 key $F10 1\n171 key $F10 0\n200 quit\n"
-if grep -q "^crt_shader=1" "$OUT/settings/bmapple2.cfg" 2>/dev/null; then
-    pass "settings: Video > CRT Effect saved to bmapple2.cfg"
+if grep -q "^crt_shader=1" "$OUT/settings/bmatarist.cfg" 2>/dev/null; then
+    pass "settings: Video > CRT Effect saved to bmatarist.cfg"
 else
-    fail settings "crt_shader=1 not in bmapple2.cfg"
+    fail settings "crt_shader=1 not in bmatarist.cfg"
 fi
 
 echo "Monitors"
@@ -361,10 +361,10 @@ EOF
 done
 # The monitor is chosen in the menu (Video, Monitor, Green) and kept.
 run monitormenu 60 "$TESTROMS" "" "120 key $F10 1\n121 key $F10 0\n130 key $DOWN 1\n131 key $DOWN 0\n132 key $DOWN 1\n133 key $DOWN 0\n134 key $DOWN 1\n135 key $DOWN 0\n136 key $DOWN 1\n137 key $DOWN 0\n140 key $ENTER 1\n141 key $ENTER 0\n150 key $ENTER 1\n151 key $ENTER 0\n160 key $DOWN 1\n161 key $DOWN 0\n162 key $DOWN 1\n163 key $DOWN 0\n170 key $ENTER 1\n171 key $ENTER 0\n180 key $F10 1\n181 key $F10 0\n200 quit\n"
-if grep -q "^monitor=green" "$OUT/monitormenu/bmapple2.cfg" 2>/dev/null; then
-    pass "monitormenu: Video > Monitor > Green saved to bmapple2.cfg"
+if grep -q "^monitor=green" "$OUT/monitormenu/bmatarist.cfg" 2>/dev/null; then
+    pass "monitormenu: Video > Monitor > Green saved to bmatarist.cfg"
 else
-    fail monitormenu "monitor=green not in bmapple2.cfg"
+    fail monitormenu "monitor=green not in bmatarist.cfg"
 fi
 
 echo "Volume"
@@ -377,9 +377,9 @@ echo "Machine choice"
 run machine 60 "$TESTROMS" "machine=iigs3" '100 quit\n'
 check_log machine "Apple IIe, ROM .*roms/ROM" "a machine without a ROM falls back to one with"
 
-if [ -n "${BMAPPLE2_ROMS:-}" ]; then
-    echo "Apple IIgs (real ROM from $BMAPPLE2_ROMS)"
-    run iigs 60 "$BMAPPLE2_ROMS" "" '300 shot boot.ppm\n310 type PRINT "HELLO"\\n\n500 shot hello.ppm\n600 audio\n601 quit\n'
+if [ -n "${BMATARIST_ROMS:-}" ]; then
+    echo "Apple IIgs (real ROM from $BMATARIST_ROMS)"
+    run iigs 60 "$BMATARIST_ROMS" "" '300 shot boot.ppm\n310 type PRINT "HELLO"\\n\n500 shot hello.ppm\n600 audio\n601 quit\n'
     check_log iigs "Read: (131072|262144) bytes of ROM" "IIgs ROM found"
     check_log iigs "machine 59\.9[0-9] Hz, synchronised to the display" "IIgs locked to 60 Hz"
     differ iigs boot hello
@@ -390,7 +390,7 @@ if [ -n "${BMAPPLE2_ROMS:-}" ]; then
     # IIgs mouse has one button, and KEGS took the right one (as its middle)
     # as a halt into its debugger, freezing the IIgs, and the wheel (as its
     # right) as a speed change. Ignored, the IIgs runs on just the same.
-    run mousebuttons 60 "$BMAPPLE2_ROMS" "" '300 mouse 0 0 2\n302 mouse 0 0 0\n304 mouse 0 0 4\n306 mouse 0 0 0\n310 type PRINT "HELLO"\\n\n500 shot hello.ppm\n501 quit\n'
+    run mousebuttons 60 "$BMATARIST_ROMS" "" '300 mouse 0 0 2\n302 mouse 0 0 0\n304 mouse 0 0 4\n306 mouse 0 0 0\n310 type PRINT "HELLO"\\n\n500 shot hello.ppm\n501 quit\n'
     if grep -qE "Middle button pressed|Toggling g_limit_speed" "$OUT/mousebuttons/log.txt"; then
         fail mousebuttons "KEGS acted on a button (see out/mousebuttons/log.txt)"
     else
@@ -403,16 +403,16 @@ if [ -n "${BMAPPLE2_ROMS:-}" ]; then
     # Booting a blank 5.25" disk: the light and S6 D1 T00 at the bottom
     # left. With the drive empty the IIe's boot ROM spins it for ever: "no
     # disk", in red. The ROMs are linked one by one, so that the IIe ROM
-    # BMApple2 makes goes in the test's folder, not the ROM folder.
+    # BMAtariST makes goes in the test's folder, not the ROM folder.
     for name in disk_iie disk_empty; do
         mkdir -p "$OUT/$name/roms"
-        for f in "$BMAPPLE2_ROMS"/*; do ln -s "$f" "$OUT/$name/roms/" 2>/dev/null; done
+        for f in "$BMATARIST_ROMS"/*; do ln -s "$f" "$OUT/$name/roms/" 2>/dev/null; done
     done
     python3 -c "open('$OUT/disk_iie/blank.dsk','wb').truncate(143360)"
     (cd "$OUT/disk_iie" && printf "120 run $OUT/disk_iie/blank.dsk\n140 shot disk.ppm\n141 quit\n" | \
-        BMAPPLE2_REFRESH=60 BMAPPLE2_CMDLINE="root=. machine=iie" "$SIM" > log.txt 2>&1)
+        BMATARIST_REFRESH=60 BMATARIST_CMDLINE="root=. machine=iie" "$SIM" > log.txt 2>&1)
     (cd "$OUT/disk_empty" && printf '100 shot disk.ppm\n101 quit\n' | \
-        BMAPPLE2_REFRESH=60 BMAPPLE2_CMDLINE="root=. machine=iie" "$SIM" > log.txt 2>&1)
+        BMATARIST_REFRESH=60 BMATARIST_CMDLINE="root=. machine=iie" "$SIM" > log.txt 2>&1)
     if grep -q "Apple IIe, ROM" "$OUT/disk_iie/log.txt"; then
         disk_colours() {
             python3 - "$1" <<'PYEOF'
@@ -443,7 +443,7 @@ PYEOF
             fail disk_empty "the empty drive not shown (red $red, green $green)"
         fi
     else
-        echo "SKIP  disk activity: no IIe ROM (or MAME's parts for one) in BMAPPLE2_ROMS"
+        echo "SKIP  disk activity: no IIe ROM (or MAME's parts for one) in BMATARIST_ROMS"
     fi
 
     echo "The virtual modem (slot 2)"
@@ -461,7 +461,7 @@ PYEOF
             '2900 type RUN\n' '4400 audio' '4401 quit'
     }
     mkdir -p "$OUT/modem/roms" "$OUT/modem_nc/roms"
-    for f in "$BMAPPLE2_ROMS"/*; do
+    for f in "$BMATARIST_ROMS"/*; do
         ln -s "$f" "$OUT/modem/roms/" 2>/dev/null
         ln -s "$f" "$OUT/modem_nc/roms/" 2>/dev/null
     done
@@ -489,8 +489,8 @@ log.flush()
 EOF
     server=$!
     sleep 1
-    (cd "$OUT/modem" && modem_basic 65514 | BMAPPLE2_SIM_CONNECT_FRAMES=120 \
-        BMAPPLE2_IP=127.0.0.1 BMAPPLE2_CMDLINE="root=." "$SIM" > log.txt 2>&1)
+    (cd "$OUT/modem" && modem_basic 65514 | BMATARIST_SIM_CONNECT_FRAMES=120 \
+        BMATARIST_IP=127.0.0.1 BMATARIST_CMDLINE="root=." "$SIM" > log.txt 2>&1)
     kill $server 2>/dev/null
     wait $server 2>/dev/null
     check_log modem "SCC port 1 is now outgoing to 127.0.0.1:65514" "ATDT connects (in the background)"
@@ -499,8 +499,8 @@ EOF
     else
         fail modem "the Apple didn't get CONNECT and WELCOME (see out/modem/server.log)"
     fi
-    (cd "$OUT/modem_nc" && modem_basic 65515 | BMAPPLE2_SIM_CONNECT_FRAMES=120 \
-        BMAPPLE2_IP=127.0.0.1 BMAPPLE2_CMDLINE="root=." "$SIM" > log.txt 2>&1)
+    (cd "$OUT/modem_nc" && modem_basic 65515 | BMATARIST_SIM_CONNECT_FRAMES=120 \
+        BMATARIST_IP=127.0.0.1 BMATARIST_CMDLINE="root=." "$SIM" > log.txt 2>&1)
     check_log modem_nc "can't connect to 127.0.0.1:65515" "a call nobody answers fails"
     for name in modem modem_nc; do
         line=$(grep "frames presented" "$OUT/$name/log.txt" | tail -1)
@@ -515,7 +515,7 @@ EOF
     echo "Apple IIgs: switching machines"
     # The IIgs's ROM folder with the stand-in IIe ROM added (as APPLE2E.ROM).
     mkdir -p "$OUT/bothroms"
-    for f in "$BMAPPLE2_ROMS"/*; do ln -s "$f" "$OUT/bothroms/" 2>/dev/null; done
+    for f in "$BMATARIST_ROMS"/*; do ln -s "$f" "$OUT/bothroms/" 2>/dev/null; done
     # (rm first: it is a link to the ROM folder's own, which cp would
     # overwrite)
     rm -f "$OUT/bothroms/APPLE2E.ROM"
@@ -524,10 +524,10 @@ EOF
     run switch 60 "$OUT/bothroms" "" "200 key $F10 1\n201 key $F10 0\n210 key $DOWN 1\n211 key $DOWN 0\n212 key $DOWN 1\n213 key $DOWN 0\n214 key $DOWN 1\n215 key $DOWN 0\n220 key $ENTER 1\n221 key $ENTER 0\n230 key $DOWN 1\n231 key $DOWN 0\n232 key $DOWN 1\n233 key $DOWN 0\n240 key $ENTER 1\n241 key $ENTER 0\n400 shot iie.ppm\n401 quit\n"
     check_log switch "machine Apple IIe, ROM .*APPLE2E\.ROM" "the menu switches to the IIe"
     check_log switch "Read: 32768 bytes of ROM" "KEGS loads the IIe's ROM"
-    if grep -q "^machine=iie" "$OUT/switch/bmapple2.cfg" 2>/dev/null; then
-        pass "switch: machine=iie saved to bmapple2.cfg"
+    if grep -q "^machine=iie" "$OUT/switch/bmatarist.cfg" 2>/dev/null; then
+        pass "switch: machine=iie saved to bmatarist.cfg"
     else
-        fail switch "machine=iie not in bmapple2.cfg"
+        fail switch "machine=iie not in bmatarist.cfg"
     fi
 
     echo "Apple IIgs starts a 5.25\" disk from the web UI"
@@ -543,7 +543,7 @@ img = bytearray(143360)
 img[:1 + len(prog)] = bytes([1] + prog)
 open(sys.argv[1], 'wb').write(img)
 EOF
-    run iigs525 60 "$BMAPPLE2_ROMS" "" "120 run $OUT/disks/boot.dsk\n900 shot booted.ppm\n901 quit\n"
+    run iigs525 60 "$BMATARIST_ROMS" "" "120 run $OUT/disks/boot.dsk\n900 shot booted.ppm\n901 quit\n"
     check_log iigs525 "startup slot set back to" "the startup slot is put back"
     # BOOTED is white letters in text row 0; without it the row is blank.
     if python3 - "$OUT/iigs525/booted.ppm" <<'EOF'

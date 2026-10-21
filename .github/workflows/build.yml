@@ -25,7 +25,7 @@ jobs:
       - name: Cache Arm GNU Toolchain
         uses: actions/cache@v6
         with:
-          path: ~/.cache/bmapple2/toolchains
+          path: ~/.cache/bmatarist/toolchains
           key: arm-gnu-toolchain-15.2.rel1-arm-none-eabi-aarch64-none-elf
 
       - name: Build
@@ -34,5 +34,5 @@ jobs:
       - name: Upload SD card files
         uses: actions/upload-artifact@v7
         with:
-          name: bmapple2-sdcard
+          name: bmatarist-sdcard
           path: build/sdcard/

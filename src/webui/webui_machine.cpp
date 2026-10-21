@@ -3,7 +3,7 @@
 //
 // Modified for BMA800XL: the Atari 800XL's name, settings file and the
 // file types atari800 can start, in place of BMC64's machines.
-// Changed for BMCoco and BMApple2: the Apple II machine.
+// Changed for BMCoco and BMAtariST: the Apple II machine.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -26,8 +26,8 @@
 #include <stdio.h>
 
 // The machine running (src/port/platform.c).
-extern "C" int bmapple2_machine(void);
-extern "C" const char *bmapple2_machine_name(int machine);
+extern "C" int bmatarist_machine(void);
+extern "C" const char *bmatarist_machine_name(int machine);
 
 namespace {
 
@@ -53,8 +53,8 @@ const WebUiMachine *WebUiMachineGet(void) {
 }
 
 const char *WebUiMachineName(void) {
-  int machine = bmapple2_machine();
-  return machine >= 0 ? bmapple2_machine_name(machine) : "";
+  int machine = bmatarist_machine();
+  return machine >= 0 ? bmatarist_machine_name(machine) : "";
 }
 
 boolean WebUiMachineCanRun(const char *ext) {

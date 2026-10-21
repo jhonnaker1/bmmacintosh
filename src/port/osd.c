@@ -1,12 +1,12 @@
 /*
- * osd.c - BMApple2's on-screen display: menus, file browser, text entry.
+ * osd.c - BMAtariST's on-screen display: menus, file browser, text entry.
  *
- * From BMCoco. Text is drawn with the Apple II character set (KEGS's
- * kegsfont.h, the Apple IIe's character ROM), each 8x8 character doubled to
- * 16x20 pixels in a 640x460 area: 40 columns by 23 rows, like an Apple II
- * 40 column screen.
+ * From BMCoco and BMApple2. Text is drawn with Hatari's own settings
+ * dialog font (gui-sdl/font10x16.h, the Atari ST's character set), each
+ * character 10x16 pixels in a 640x460 area: 64 columns by 28 rows, black on
+ * white like GEM's dialogs.
  *
- * This file is part of BMApple2, a bare metal Apple II and IIgs emulator for
+ * This file is part of BMAtariST, a bare metal Atari ST emulator for
  * the Raspberry Pi. See LICENSE for licensing details.
  */
 
@@ -19,26 +19,27 @@
 #include <sys/stat.h>
 
 #include "../host.h"
-#include "bmapple2.h"
+#include "bmatarist.h"
 #include "osd.h"
 
 #define OSD_W 640
 #define OSD_H 460
-#define CELL_W 16
-#define CELL_H 20
+#define CELL_W 10
+#define CELL_H 16
 
-/* KEGS's Apple II font (video.c, kegsfont.h): 8 rows a character, the
-   leftmost pixel in bit 6 (bit 7 is a blank column). Normal text is
-   0x80-0xff, set bits drawn; 0x00-0x7f is inverse and flashing text. */
-extern unsigned char g_font_array[256][8];
+/* Hatari's 10x16 font: an X bitmap, 16 characters across and 16 down,
+   the leftmost pixel of each byte in bit 0. */
+typedef uint8_t Uint8;
+#include "gui-sdl/font10x16.h"
 
-/* RGB565 colours: a green screen Apple II monitor, and an orange bar. */
-#define C_BLACK   0x0000
-#define C_GREEN   0x0fe1  /* bright green: text */
-#define C_DKGREEN 0x0400  /* dark green: labels and hints */
-#define C_ORANGE  0xfc00  /* the selection */
+/* RGB565 colours: GEM's black on white, the selection inverted. The names
+   are what each colour is used for. */
+#define C_BLACK   0xffff  /* the background */
+#define C_GREEN   0x0000  /* text */
+#define C_DKGREEN 0x7bef  /* grey: labels and hints */
+#define C_ORANGE  0x0000  /* the selection's bar (its text is C_BLACK) */
 #define C_RED     0xf800
-#define C_DKRED   0x5000  /* the disk light, off */
+#define C_DKRED   0x7800  /* the disk light, off */
 
 #define REPEAT_DELAY 0.40
 #define REPEAT_RATE  0.06
@@ -52,28 +53,24 @@ static void flush_input(void);
 
 static uint16_t *osd_fb(int *pitch)
 {
-	return bmapple2_framebuffer(pitch);
+	return bmatarist_framebuffer(pitch);
 }
 
-/* An Apple II glyph, each pixel drawn 2x2, with 2 blank lines above and
-   below. */
+/* A glyph from Hatari's font. */
 static void draw_char_at(uint16_t *fb, int pitch, int x, int y, unsigned char c,
                          uint16_t fg, uint16_t bg)
 {
-	const unsigned char *glyph;
-	int row, col;
+	int row, col, gx, gy;
 	if (c >= 0x80 || c < 0x20)
 		c = '?';
-	glyph = g_font_array[c | 0x80];
+	gx = (c % 16) * CELL_W;
+	gy = (c / 16) * CELL_H;
 	for (row = 0; row < CELL_H; row++) {
 		uint16_t *p = fb + (y + row) * pitch + x;
-		int font_row = (row - 2) / 2;
-		unsigned bits = row >= 2 && font_row < 8 ? glyph[font_row] & 0x7f : 0;
-		for (col = 0; col < 8; col++) {
-			uint16_t colour = (bits & (0x80 >> col)) ? fg : bg;
-			p[0] = colour;
-			p[1] = colour;
-			p += 2;
+		const uint8_t *line = font10x16_bits + (gy + row) * (font10x16_width / 8);
+		for (col = 0; col < CELL_W; col++) {
+			int bit = gx + col;
+			p[col] = (line[bit >> 3] & (1 << (bit & 7))) ? fg : bg;
 		}
 	}
 }
@@ -146,7 +143,7 @@ void osd_open(void)
 	closing = FALSE;
 	flush_input();
 	clear_screen();
-	bmapple2_osd_view(TRUE);
+	bmatarist_osd_view(TRUE);
 }
 
 void osd_close(void)
@@ -157,7 +154,7 @@ void osd_close(void)
 	closing = FALSE;
 	flush_input();
 	clear_screen();
-	bmapple2_osd_view(FALSE);
+	bmatarist_osd_view(FALSE);
 }
 
 int osd_is_open(void)
@@ -319,7 +316,7 @@ static int poll_input(int pads)
 	int usage, pressed, key;
 	double now = host_time();
 
-	if (bmapple2_pending_requests()) {
+	if (bmatarist_pending_requests()) {
 		closing = TRUE;
 		return OSD_KEY_MENU;
 	}
@@ -331,7 +328,7 @@ static int poll_input(int pads)
 		}
 		if (usage == USAGE_POWER) {
 			/* Shut Down, as during play (platform.c). */
-			bmapple2_request_power(1);
+			bmatarist_request_power(1);
 			closing = TRUE;
 			return OSD_KEY_MENU;
 		}
@@ -378,7 +375,7 @@ int osd_poll_key(int pads)
 	key = poll_input(pads);
 	if (key == OSD_KEY_NONE) {
 		/* Waits for the next display refresh. */
-		bmapple2_idle();
+		bmatarist_idle();
 		host_video_present(TRUE);
 		if (!pads)
 			flush_pads();
@@ -620,7 +617,7 @@ void osd_message(const char *text, int wait)
 	int was_open = is_open;
 	if (!was_open)
 		osd_open();
-	draw_frame("BMApple2", wait ? "Press any key" : NULL);
+	draw_frame("BMAtariST", wait ? "Press any key" : NULL);
 	draw_wrapped(5, OSD_ROWS - 7, text, C_GREEN);
 	if (wait) {
 		osd_read_key();
@@ -757,10 +754,17 @@ static void free_entries(struct entry *list, int n)
 	free(list);
 }
 
-int osd_browse(const char *title, char *dir, size_t dir_size,
-               const char *const exts[], char *path, size_t path_size)
+/* The file browser; with PICK_FOLDER, folders are what is chosen (an item
+   at the top chooses the one being looked at) and files aren't listed. */
+static int browse(const char *title, char *dir, size_t dir_size,
+                  const char *const exts[], char *path, size_t path_size,
+                  int pick_folder)
 {
+	static const char *const no_files[] = {NULL};
 	char came_from[256] = "";
+
+	if (pick_folder)
+		exts = no_files;
 
 	for (;;) {
 		struct entry *list = NULL;
@@ -780,7 +784,7 @@ int osd_browse(const char *title, char *dir, size_t dir_size,
 		}
 
 		/* The directory, then "..", then the entries. */
-		items = calloc(n + 2, sizeof(*items));
+		items = calloc(n + 3, sizeof(*items));
 		if (items == NULL) {
 			free_entries(list, n);
 			return 0;
@@ -801,13 +805,27 @@ int osd_browse(const char *title, char *dir, size_t dir_size,
 		}
 		if (n > 0 && came_from[0] == '\0')
 			sel = 2;
+		if (pick_folder) {
+			/* "Use this folder" between the heading and "..". */
+			memmove(items + 2, items + 1, (n + 1) * sizeof(*items));
+			items[1].text = "[ Use this folder ]";
+			items[1].value = NULL;
+			items[1].flags = 0;
+			items[1].id = -4;
+			sel = sel > 1 ? sel + 1 : 1;
+		}
 
-		chosen = osd_menu(title, items, n + 2, &sel);
+		chosen = osd_menu(title, items, n + 2 + (pick_folder != 0), &sel);
 		free(items);
 
 		if (chosen == -1) {
 			free_entries(list, n);
 			return 0;
+		}
+		if (chosen == -4) {
+			snprintf(path, path_size, "%s", dir);
+			free_entries(list, n);
+			return 1;
 		}
 		if (chosen == -3) {
 			char *slash;
@@ -838,6 +856,18 @@ int osd_browse(const char *title, char *dir, size_t dir_size,
 	}
 }
 
+int osd_browse(const char *title, char *dir, size_t dir_size,
+               const char *const exts[], char *path, size_t path_size)
+{
+	return browse(title, dir, dir_size, exts, path, path_size, FALSE);
+}
+
+int osd_browse_folder(const char *title, char *dir, size_t dir_size,
+                      char *path, size_t path_size)
+{
+	return browse(title, dir, dir_size, NULL, path, path_size, TRUE);
+}
+
 /* ---- Notifications ------------------------------------------------------------ */
 
 static char notify_text[OSD_COLS + 1];
@@ -849,14 +879,14 @@ void osd_notify(const char *text)
 	notify_until = host_time() + 3.0;
 }
 
-void osd_draw_notification(uint16_t *fb, int pitch_px, int w, int h)
+int osd_draw_notification(uint16_t *fb, int pitch_px, int w, int h)
 {
 	int len, x, y, i;
 	if (notify_text[0] == '\0')
-		return;
+		return FALSE;
 	if (host_time() > notify_until) {
 		notify_text[0] = '\0';
-		return;
+		return TRUE;   /* drawn last time: to be covered again */
 	}
 	len = (int) strlen(notify_text) + 2;
 	if (len * CELL_W > w)
@@ -864,12 +894,13 @@ void osd_draw_notification(uint16_t *fb, int pitch_px, int w, int h)
 	x = (w - len * CELL_W) / 2;
 	y = h - CELL_H - 4;
 	if (x < 0 || y < 0)
-		return;
+		return FALSE;
 	draw_char_at(fb, pitch_px, x, y, ' ', C_BLACK, C_GREEN);
 	for (i = 0; i < len - 2; i++)
 		draw_char_at(fb, pitch_px, x + (i + 1) * CELL_W, y,
 		             (unsigned char) notify_text[i], C_BLACK, C_GREEN);
 	draw_char_at(fb, pitch_px, x + (len - 1) * CELL_W, y, ' ', C_BLACK, C_GREEN);
+	return TRUE;
 }
 
 /* The disk activity line at the bottom left (platform.c): a light (lit

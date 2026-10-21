@@ -12,12 +12,12 @@
 // them. The GPU sees them as red in the low byte, but every channel is
 // treated alike, so they come out in the order they went in.
 //
-// This file is part of BMApple2, a bare metal Apple II and IIgs emulator for
+// This file is part of BMAtariST, a bare metal Atari ST emulator for
 // the Raspberry Pi. See LICENSE for licensing details.
 //
 
-#ifndef BMAPPLE2_V3D_CRT_H_
-#define BMAPPLE2_V3D_CRT_H_
+#ifndef BMATARIST_V3D_CRT_H_
+#define BMATARIST_V3D_CRT_H_
 
 #include "draw.h"
 
