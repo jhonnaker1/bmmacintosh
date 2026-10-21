@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.1.0 – unreleased
+## 0.1.0 – 2026-10-21
 
 The first BMAtariST: BMApple2 0.4.2 (itself from BMCoco, BMA800XL and
 BMC64), with KEGS replaced by Hatari (master after 2.6.1).
