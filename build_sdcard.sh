@@ -109,8 +109,7 @@ then
     fi
 fi
 
-# The PC tests (tools/hostsim without real ROMs: set BMATARIST_ROMS to test
-# with them too).
+# The PC tests (tools/hostsim, with EmuTOS).
 if [ "$SKIP_TESTS" -eq 0 ]
 then
     echo "=============================================================="
@@ -155,9 +154,17 @@ folder_readme() {
     mkdir -p "$STAGING_DIR/$1"
     printf '%s\r\n' "$2" > "$STAGING_DIR/$1/README.txt"
 }
-folder_readme disks    "Disk images: .po .2mg .hdv .dsk .do .nib .woz (mount them with F4, Disk Configuration, or start one from the web UI)"
-mkdir -p "$STAGING_DIR/roms"
-cp "$SRC_DIR/docs/ROMS.txt" "$STAGING_DIR/roms/ROMS.txt"
+folder_readme disks    "Floppy disk images: .st .msa .dim .stx .scp, also zipped or gzipped (insert them from the menu, F12, Floppy Disks, or start one from the web UI)"
+folder_readme snapshots "Saved states (menu, F12, Save State and Load State)"
+folder_readme hd       "Hard disks: a folder here can be the ST's drive C: (menu, F12, Hard Disks, Folder as a Drive), and ACSI or IDE hard disk images go here too"
+# EmuTOS, so the card starts with nothing added; the user's own TOS images
+# go in the same folder.
+if ! "$SRC_DIR/make_emutos.sh" "$STAGING_DIR"
+then
+    echo "EmuTOS could not be fetched (it is cached once it has been)." >&2
+    exit 1
+fi
+cp "$SRC_DIR/docs/TOS.txt" "$STAGING_DIR/tos/TOS.txt"
 
 for board in "${BOARDS[@]}"
 do

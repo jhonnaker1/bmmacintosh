@@ -21,11 +21,14 @@
 #include "configuration.h"
 #include "floppy.h"
 #include "joy_ui.h"
+#include "memorySnapShot.h"
 #include "tos.h"
 #include "version.h"
 
 #include <stdint.h>
 #include <strings.h>
+#include <sys/stat.h>
+#include <time.h>
 
 #include "../host.h"
 #include "bmatarist.h"
@@ -253,7 +256,7 @@ static void hard_disks_menu(void)
 			{"drive after the hard disk's partitions). Changes reset", NULL, OSD_ITEM_LABEL, -1},
 			{"the ST.", NULL, OSD_ITEM_LABEL, -1},
 		};
-		char path[512], dir[256];
+		char path[FILENAME_MAX], dir[FILENAME_MAX];
 		int chosen = osd_menu("Hard Disks", items, sizeof items / sizeof items[0], &sel), i;
 		bmatarist_settings_begin();
 		switch (chosen) {
@@ -979,6 +982,76 @@ static void network_menu(void)
 	}
 }
 
+/* ---- Saved states --------------------------------------------------------- */
+
+/* Four slots, snapshots/state1.sav to state4.sav on the card: Hatari's own
+   memory snapshots (the whole ST: memory, chips, CPU, disks in the drives).
+   A restore is done by the CPU core when it starts again (platform.c's main
+   loop restarts it, as after a reset). */
+#define STATE_SLOTS 4
+
+static void state_path(int slot, char *path, size_t size)
+{
+	char name[16];
+	snprintf(name, sizeof name, "state%d.sav", slot + 1);
+	bmatarist_card_path(path, size, "snapshots", name);
+}
+
+/* "Slot 2: 2026-10-20 19:31", or "Slot 2: (empty)". */
+static void state_label(int slot, char *text, size_t size)
+{
+	char path[256];
+	struct stat st;
+	state_path(slot, path, sizeof path);
+	if (stat(path, &st) == 0) {
+		struct tm *t = localtime(&st.st_mtime);
+		if (t != NULL)
+			snprintf(text, size, "Slot %d: %04d-%02d-%02d %02d:%02d", slot + 1,
+			         t->tm_year + 1900, t->tm_mon + 1, t->tm_mday, t->tm_hour, t->tm_min);
+		else
+			snprintf(text, size, "Slot %d: saved", slot + 1);
+	} else {
+		snprintf(text, size, "Slot %d: (empty)", slot + 1);
+	}
+}
+
+/* Returns TRUE if a state was loaded (the menu then closes). */
+static int states_menu(int load)
+{
+	char labels[STATE_SLOTS][48];
+	const char *choices[STATE_SLOTS + 1];
+	char path[256], dir[256];
+	struct stat st;
+	int i;
+	for (i = 0; i < STATE_SLOTS; i++) {
+		state_label(i, labels[i], sizeof labels[i]);
+		choices[i] = labels[i];
+	}
+	choices[STATE_SLOTS] = NULL;
+	i = osd_choose(load ? "Load State" : "Save State", choices, 0);
+	if (i < 0)
+		return FALSE;
+	state_path(i, path, sizeof path);
+	if (load) {
+		if (stat(path, &st) != 0) {
+			osd_message("That slot is empty.", TRUE);
+			return FALSE;
+		}
+		printf("BMAtariST: loading %s\n", path);
+		MemorySnapShot_Restore(path, false);
+		return TRUE;
+	}
+	bmatarist_card_path(dir, sizeof dir, "snapshots", "");
+	mkdir(dir, 0777);
+	printf("BMAtariST: saving %s\n", path);
+	MemorySnapShot_Capture_Immediate(path, false);
+	if (stat(path, &st) != 0 || st.st_size == 0)
+		osd_message("Cannot save the state on the SD card.", TRUE);
+	else
+		osd_notify("State saved");
+	return FALSE;
+}
+
 /* ---- Information ----------------------------------------------------------- */
 
 static void about(void)
@@ -1015,8 +1088,8 @@ static void offer_reboot(void)
 
 void bmatarist_menu(void)
 {
-	enum { M_DISKS, M_HD, M_RESET, M_RESTART, M_MACHINE, M_JOYSTICKS, M_VIDEO, M_SOUND,
-	       M_NETWORK, M_ABOUT, M_REBOOT, M_OFF };
+	enum { M_DISKS, M_HD, M_SAVE, M_LOAD, M_RESET, M_RESTART, M_MACHINE, M_JOYSTICKS,
+	       M_VIDEO, M_SOUND, M_NETWORK, M_ABOUT, M_REBOOT, M_OFF };
 	static int sel = 0;
 	char title[48], speed[48];
 
@@ -1028,6 +1101,8 @@ void bmatarist_menu(void)
 		struct osd_item items[] = {
 			{"Floppy Disks", a[0] ? base_name(a) : NULL, OSD_ITEM_SUBMENU, M_DISKS},
 			{"Hard Disks", NULL, OSD_ITEM_SUBMENU, M_HD},
+			{"Save State", NULL, OSD_ITEM_SUBMENU, M_SAVE},
+			{"Load State", NULL, OSD_ITEM_SUBMENU, M_LOAD},
 			{"Reset (the ST's reset button)", NULL, 0, M_RESET},
 			{"Restart (switch the ST off and on)", NULL, 0, M_RESTART},
 			{"", NULL, OSD_ITEM_LABEL, -1},
@@ -1052,6 +1127,8 @@ void bmatarist_menu(void)
 		switch (chosen) {
 		case M_DISKS: disks_menu(); break;
 		case M_HD: hard_disks_menu(); break;
+		case M_SAVE: states_menu(FALSE); leave = TRUE; break;
+		case M_LOAD: leave = states_menu(TRUE); break;
 		case M_RESET: bmatarist_warm_reset(); leave = TRUE; break;
 		case M_RESTART: bmatarist_cold_reset(); leave = TRUE; break;
 		case M_MACHINE: machine_menu(); break;

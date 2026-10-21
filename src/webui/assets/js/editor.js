@@ -1,5 +1,5 @@
 // Overlay text editor for the device's config files (cmdline.txt,
-// config.txt, config.kegs, bmatarist.cfg, wpa_supplicant.conf), which the device decides:
+// config.txt, hatari.cfg, bmatarist.cfg, wpa_supplicant.conf), which the device decides:
 // the file list marks them "edit".
 
 import { $, normPath } from "./util.js";

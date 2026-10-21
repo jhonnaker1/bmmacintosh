@@ -32,8 +32,7 @@ struct WebUiMachine {
 
 const WebUiMachine *WebUiMachineGet(void);
 
-// The machine running, as the menu names it ("Apple IIgs, ROM 3", "Apple
-// IIe"), or "" before one has started (no ROM).
+// The machine running, as the menu names it ("Atari STE", "Falcon 030").
 const char *WebUiMachineName(void);
 
 // TRUE if Autostart accepts files with this extension (any case).

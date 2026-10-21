@@ -2,32 +2,27 @@
 #
 # Runs BMAtariST in the host simulator in real time, shown in a web page:
 #
-#   tools/hostsim/live.sh [ROM_DIRECTORY] [PORT]
+#   tools/hostsim/live.sh [TOS_DIRECTORY] [PORT]
 #
-# then open http://127.0.0.1:PORT/ (default port 8064). ROM_DIRECTORY holds
-# your Apple IIgs or IIe ROM (ROM.03, ROM.01, APPLE2E.ROM, or MAME's chips;
-# see docs/ROMS.txt); without it the stand-in test ROM is used. The
-# simulator's SD card is tools/hostsim/out/live: put disk images in its
-# disks folder and mount them with F4. Choosing Reboot (or Shut Down) in the
-# menu starts it again. Ctrl+C stops it.
+# then open http://127.0.0.1:PORT/ (default port 8064). The simulator's SD
+# card is tools/hostsim/out/live, set up as the Pi's: EmuTOS in its tos
+# folder (with the TOS images in TOS_DIRECTORY, if given), floppy images in
+# disks, hard disk folders and images in hd. Choosing Reboot (or Shut Down)
+# in the menu starts it again. Ctrl+C stops it.
 #
 set -u
 
 HERE=$(cd "$(dirname "$0")" && pwd)
-ROMS=${1:-}
+TOS_DIR=${1:-}
 PORT=${2:-8064}
 CARD=$HERE/out/live
 
 make -s -C "$HERE" -j4 || exit 1
 
-mkdir -p "$CARD"/disks
-rm -f "$CARD/roms"
-if [ -n "$ROMS" ]; then
-    ln -s "$ROMS" "$CARD/roms"
-else
-    mkdir -p "$CARD/testroms"
-    python3 "$HERE/make_test_rom.py" "$CARD/testroms" > /dev/null
-    ln -s "$CARD/testroms" "$CARD/roms"
+mkdir -p "$CARD"/{disks,hd,snapshots}
+"$HERE/../../make_emutos.sh" "$CARD" > /dev/null || exit 1
+if [ -n "$TOS_DIR" ]; then
+    cp "$TOS_DIR"/* "$CARD/tos/" 2>/dev/null
 fi
 
 cd "$CARD" || exit 1

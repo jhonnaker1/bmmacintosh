@@ -60,6 +60,8 @@ void bmatarist_display_mode_changed(void);
 void bmatarist_request_power(int power_off);
 /* Web UI requests waiting to be done; menus close for them. */
 int bmatarist_pending_requests(void);
+/* The machine emulated: "Atari STE". */
+const char *bmatarist_machine_text(void);
 /* How fast the emulation runs, in percent of the real machine's speed,
    over the last second or so. */
 int bmatarist_speed_percent(void);

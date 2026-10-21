@@ -9,6 +9,9 @@
  * FatFs could, but Circle's file system calls don't offer it: the date is
  * left as it is, which only changes what the ST's desktop shows.
  *
+ * access(): the GEMDOS drive checks files can be read and written.
+ * Everything on the SD card can be (from BMCoco).
+ *
  * chmod(): the GEMDOS drive makes a file read only when the ST asks
  * (Fattrib). newlib declares it but Circle doesn't have it; it fails, and
  * Hatari tells the ST so.
@@ -28,6 +31,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <unistd.h>
 #include <utime.h>
 
 int alphasort(const struct dirent **a, const struct dirent **b)
@@ -87,6 +91,13 @@ int utime(const char *path, const struct utimbuf *times)
 	(void) times;
 	errno = ENOSYS;
 	return -1;
+}
+
+int access(const char *path, int mode)
+{
+	struct stat st;
+	(void) mode;
+	return stat(path, &st);
 }
 
 int chmod(const char *path, mode_t mode)

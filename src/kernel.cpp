@@ -184,7 +184,7 @@ bool CKernel::Initialize(void) {
   }
   mLogger.RegisterPanicHandler(PanicHandler);
   mLogger.Write(FromKernel, LogNotice, "BMAtariST " BMATARIST_VERSION " (" BMATARIST_GIT
-                ", KEGS " KEGS_VERSION ")");
+                ", Hatari " HATARI_GIT ")");
 
   if (!mTimer.Initialize()) {
     return false;

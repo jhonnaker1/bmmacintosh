@@ -131,10 +131,10 @@ then
     nproc() { sysctl -n hw.ncpu; }
 fi
 
-if [ ! -f "$CIRCLE_HOME/Rules.mk" ] || [ ! -f "$SRC_DIR/third_party/kegs/src/sim65816.c" ]
+if [ ! -f "$CIRCLE_HOME/Rules.mk" ] || [ ! -f "$SRC_DIR/third_party/hatari/src/main.c" ]
 then
     echo "Fetching submodules..."
-    git -C "$SRC_DIR" submodule update --init third_party/kegs third_party/circle-stdlib
+    git -C "$SRC_DIR" submodule update --init third_party/hatari third_party/zlib third_party/circle-stdlib
     git -C "$CIRCLE_STDLIB" submodule update --init libs/circle libs/circle-newlib
     git -C "$CIRCLE_HOME" submodule update --init addon/wlan/hostap
 fi
@@ -161,7 +161,7 @@ echo "BUILD CIRCLE-STDLIB for Raspberry Pi $RASPI"
 echo "=============================================================="
 cd "$CIRCLE_STDLIB"
 find . -name config.cache -delete
-bash ./configure --raspberrypi=$RASPI --kernel-max-size 16 "${CONFIGURE_PREFIX[@]}"
+bash ./configure --raspberrypi=$RASPI --kernel-max-size 48 "${CONFIGURE_PREFIX[@]}"
 make -C libs/circle clean >/dev/null 2>&1 || true
 make -j"$(nproc)"
 

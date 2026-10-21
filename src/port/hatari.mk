@@ -197,5 +197,7 @@ ZLIB_CFLAGS = -DHAVE_UNISTD_H -DHAVE_STDARG_H -w
 # The compiler options Hatari's build gives its own sources: the CPU core is
 # WinUAE's, and kept in step with it, so its warnings are left alone (-w
 # here); -fwrapv as Hatari's build has it (the CPU core counts on signed
-# overflow wrapping).
-HATARI_CFLAGS = -std=gnu11 -fwrapv -w
+# overflow wrapping). GCC 14 and later make passing an int * for an
+# int32_t * an error, not a warning; with the 32-bit Arm toolchain int32_t
+# is a long (the same size), and fpp_softfloat.c does just that.
+HATARI_CFLAGS = -std=gnu11 -fwrapv -w -Wno-incompatible-pointer-types

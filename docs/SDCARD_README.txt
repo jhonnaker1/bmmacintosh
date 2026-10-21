@@ -1,38 +1,43 @@
-BMApple2 - bare metal Apple IIgs and Apple IIe emulator for the Raspberry Pi
-============================================================================
+BMAtariST - bare metal Atari ST, STE, TT and Falcon emulator for the Raspberry Pi
+=================================================================================
 
 Copy everything here to the root of a FAT32 SD card and boot a Raspberry
-Pi 5, 500, 4, 400, 3, Zero 2 W or 2 from it (a Pi Zero or Zero W starts
-too, but is likely too slow for the IIgs), with a USB keyboard (and a mouse
-for the IIgs desktop, and a gamepad if you like) connected.
+Pi 5, 500, 4 or 400 from it (a Pi 3, Zero 2 W or 2 runs the ST and STE,
+but may not keep up with everything), with a USB keyboard and mouse (and a
+gamepad if you like) connected.
 
-First copy an Apple IIgs ROM (ROM.03 or ROM.01) or an Apple IIe ROM into
-the roms folder (see roms/ROMS.txt). They are copyrighted, so they are not
-included.
+It starts EmuTOS, the free TOS, from the tos folder. To use Atari's own
+TOS, copy your TOS images into tos (see tos/TOS.txt) and choose one in the
+menu (F12, Machine, TOS). They are copyrighted, so they are not included.
 
-Disks: press F4 for KEGS's settings, Disk Configuration, and choose a disk
-image for a drive (slot 7 for hard disks, 5 for 3.5", 6 for 5.25"). They
-are remembered in config.kegs. Or start one from the web UI.
+Floppies: press F12, Floppy Disks, Drive A:, Insert a Disk, and choose an
+image (.st, .msa, .dim, .stx, .scp, also zipped or gzipped). Restart (in
+the menu) starts the ST from it. Disks the ST writes to are written back to
+the card. Or start one from the web UI.
 
-  F10           BMApple2's menu       F4            KEGS settings (disks, ROM)
-  Ctrl+F12      Reset                 F6            Speed
-  Windows/Cmd   Open Apple            Alt           Option (Solid Apple)
-  F1, F2        Open Apple, Option    F3            Escape
+Hard disk: F12, Hard Disks, Folder as a Drive, and choose a folder on the
+card (the hd folder is there for it): it's the ST's drive C:.
 
-Gamepads are the joystick (paddles): stick or D-pad to move, A and B the
-buttons, X Space, Y Return, Home (or Select+Start) for the menu.
+  F12               BMAtariST's menu      F11 (Print Screen)   Help
+  End (Scroll Lock) Undo                  Home                 ClrHome
+  Alt               Alternate             Page Up, Page Down   Keypad ( )
 
-Put your disk images in the disks folder (or anywhere).
+Gamepads are the joystick: stick or D-pad to move, A to fire, B the second
+button, X Space, Y Return, Home (or Select+Start) for the menu.
+
+Saved states: F12, Save State and Load State (in the snapshots folder).
 
 Networking: choose Ethernet or Wi-Fi under Network in the menu (or add
 network=ethernet or network=wifi to cmdline.txt), then open the address
 shown on screen in a browser to manage the files on this card and start
-disk images. The modem port (slot 2) then has a virtual modem: from a
-terminal program, ATDTbbs.example.com:23 calls a telnet BBS.
+floppy images.
 
-Licences: BMApple2 is under the GPL version 3 (LICENSE.txt); the licenses
-folder has the notices for other projects' code it includes, and the
-firmware folder the Raspberry Pi and Wi-Fi firmware's licences.
+No need to shut down: just switch it off.
 
-Options are in cmdline.txt; see docs/USER_GUIDE.md in BMApple2's source for
-all of them.
+Licences: BMAtariST is under the GPL version 3 (LICENSE.txt); the licenses
+folder has the notices for other projects' code it includes (Hatari,
+EmuTOS, zlib and the rest), and the firmware folder the Raspberry Pi and
+Wi-Fi firmware's licences.
+
+Options are in cmdline.txt; see docs/USER_GUIDE.md in BMAtariST's source
+for all of them: https://github.com/jhonnaker1/bmatarist

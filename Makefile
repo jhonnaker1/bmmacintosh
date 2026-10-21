@@ -22,20 +22,27 @@ include $(CIRCLEHOME)/Config.mk
 
 BMATARIST_VERSION ?= $(shell tools/version.sh --semver)
 BMATARIST_GIT ?= $(shell tools/version.sh --git)
-KEGS := third_party/kegs/src
-KEGS_VERSION := $(shell sed -n 's/.*g_kegs_version_str\[\] = "\(.*\)";.*/\1/p' $(KEGS)/sim65816.c)
+HATARI := third_party/hatari/src
+ZLIB := third_party/zlib
+# "v2.6.1-579-g90949cfa": the release the submodule is after, and its commit.
+HATARI_VERSION := $(shell git -C third_party/hatari describe --tags 2>/dev/null || echo unknown)
 
-include src/port/kegs.mk
+include src/port/hatari.mk
 
 BUILD := build
-KEGS_OBJS := $(addprefix $(BUILD)/kegs/,$(KEGS_SRCS:.c=.o))
-KEGS_LIB := $(BUILD)/libkegs.a
+GEN := $(BUILD)/gen
+HATARI_OBJS := $(addprefix $(BUILD)/hatari/,$(HATARI_CORE_SRCS:.c=.o)) \
+               $(addprefix $(BUILD)/hatari/cpu/,$(HATARI_CPU_SRCS:.c=.o)) \
+               $(addprefix $(GEN)/,$(HATARI_CPUGEN_SRCS:.c=.o) $(HATARI_CPUDEFS_SRC:.c=.o)) \
+               $(addprefix $(BUILD)/hatari/falcon/,$(HATARI_FALCON_SRCS:.c=.o)) \
+               $(addprefix $(BUILD)/hatari/debug/,$(HATARI_DEBUG_SRCS:.c=.o)) \
+               $(addprefix $(BUILD)/zlib/,$(ZLIB_SRCS:.c=.o))
+HATARI_LIB := $(BUILD)/libhatari.a
 
 OBJS = src/main.o src/kernel.o src/logging.o src/options.o \
-       src/port/platform.o src/port/keymap.o src/port/joystick.o \
-       src/port/snddrv.o src/port/menu.o src/port/osd.o \
-       src/port/scc_stub.o src/port/scc_socket_driver.o src/port/posix_extra.o \
+       src/port/platform.o src/port/menu.o src/port/osd.o src/port/posix_extra.o \
        src/port/fswrap.o \
+       $(addprefix src/port/,$(HATARI_PORT_SRCS:.c=.o)) \
        src/network.o src/network_time_sync.o \
        src/webui/webui.o src/webui/webui_http.o src/webui/webui_fs.o \
        src/webui/webui_machine.o src/webui/webui_assets.o \
@@ -74,32 +81,68 @@ INCLUDE := $(CIRCLE_STDLIB_INCLUDES) $(INCLUDE) -I $(CIRCLEHOME)/addon/fatfs
 LDFLAGS += --wrap=stat
 
 VERSION_DEFINES = -DBMATARIST_VERSION=\"$(BMATARIST_VERSION)\" \
-                  -DBMATARIST_GIT=\"$(BMATARIST_GIT)\" -DKEGS_VERSION=\"$(KEGS_VERSION)\"
+                  -DBMATARIST_GIT=\"$(BMATARIST_GIT)\" -DHATARI_GIT=\"$(HATARI_VERSION)\"
 CFLAGS += $(VERSION_DEFINES)
 CPPFLAGS += $(VERSION_DEFINES)
 
-# The port's C files include KEGS's headers (defc.h and the rest).
-src/port/%.o src/port/%.d: CFLAGS += -I $(KEGS) -I src/port -idirafter src/port/compat -std=gnu11
+HATARI_INCLUDES = -I src/port -I $(HATARI)/includes -I $(HATARI)/debug -I $(HATARI)/falcon \
+                  -I $(HATARI)/cpu -I $(HATARI)/cpu/softfloat -I $(HATARI) -I $(GEN) -I $(ZLIB)
 
-# KEGS itself: compiled into build/ so the submodule stays clean. clock.c's
-# get_dtime() and micro_sleep() are renamed out of the way of BMAtariST's
-# (src/port/kegs.mk).
-KEGS_CFLAGS = -I $(KEGS) -I src/port -idirafter src/port/compat -std=gnu11 -w
+# The port's C files include Hatari's headers.
+src/port/%.o src/port/%.d: CFLAGS += $(HATARI_INCLUDES) -std=gnu11 \
+	-include src/port/compat/hatari_prefix.h
+$(addprefix src/port/,$(HATARI_PORT_SRCS:.c=.o) platform.o menu.o): $(GEN)/cputbl.h
 
-$(BUILD)/kegs/clock.o: $(KEGS)/clock.c
+# Hatari itself (and zlib): compiled into build/ so the submodules stay
+# clean.
+HATARI_FLAGS = $(HATARI_CFLAGS) $(HATARI_INCLUDES) -include src/port/compat/hatari_prefix.h
+
+# The CPU core's generated sources, as Hatari's build makes them for a
+# cross compile (src/cpu/CMakeLists.txt): build68k and gencpu are built for
+# this computer, with its compiler.
+HOSTCC ?= cc
+
+$(GEN)/build68k: $(HATARI)/cpu/build68k.c $(HATARI)/cpu/writelog.c
+	@mkdir -p $(GEN)
+	@echo "  HOSTCC $@"
+	@$(HOSTCC) -I $(HATARI)/cpu -I $(HATARI)/includes -I src/port -o $@ $^
+
+$(GEN)/cpudefs.c: $(GEN)/build68k $(HATARI)/cpu/table68k
+	@echo "  GEN   $@"
+	@$(GEN)/build68k < $(HATARI)/cpu/table68k > $@
+
+$(GEN)/gencpu: $(GEN)/cpudefs.c $(HATARI)/cpu/gencpu.c $(HATARI)/cpu/readcpu.c
+	@echo "  HOSTCC $@"
+	@$(HOSTCC) -I $(HATARI)/cpu -I $(HATARI)/includes -I src/port -o $@ $^
+
+$(GEN)/cpustbl.c: $(GEN)/gencpu
+	@echo "  GEN   $(GEN)/cpuemu_*.c"
+	@cd $(GEN) && ./gencpu > /dev/null
+
+$(addprefix $(GEN)/,$(filter-out cpustbl.c,$(HATARI_CPUGEN_SRCS))) $(GEN)/cputbl.h: $(GEN)/cpustbl.c
+
+# A static pattern rule: Circle's own %.o: %.c (Rules.mk) would otherwise be
+# used for these, which are .c files next to their .o (make 3.81, macOS's,
+# takes the first rule that matches).
+HATARI_GEN_OBJS := $(addprefix $(GEN)/,$(HATARI_CPUGEN_SRCS:.c=.o) $(HATARI_CPUDEFS_SRC:.c=.o))
+$(HATARI_GEN_OBJS): $(GEN)/%.o: $(GEN)/%.c
+	@echo "  CC    $<"
+	@$(CC) $(CFLAGS) $(HATARI_FLAGS) -c -o $@ $<
+
+$(BUILD)/hatari/%.o: $(HATARI)/%.c $(GEN)/cputbl.h
 	@mkdir -p $(dir $@)
 	@echo "  CC    $<"
-	@$(CC) $(CFLAGS) $(KEGS_CFLAGS) $(KEGS_CLOCK_RENAMES) -c -o $@ $<
+	@$(CC) $(CFLAGS) $(HATARI_FLAGS) -c -o $@ $<
 
-$(BUILD)/kegs/%.o: $(KEGS)/%.c
+$(BUILD)/zlib/%.o: $(ZLIB)/%.c
 	@mkdir -p $(dir $@)
 	@echo "  CC    $<"
-	@$(CC) $(CFLAGS) $(KEGS_CFLAGS) -c -o $@ $<
+	@$(CC) $(CFLAGS) $(ZLIB_CFLAGS) -c -o $@ $<
 
-$(KEGS_LIB): $(KEGS_OBJS)
+$(HATARI_LIB): $(HATARI_OBJS)
 	@echo "  AR    $@"
 	@rm -f $@
-	@$(AR) cr $@ $(KEGS_OBJS)
+	@$(AR) cr $@ $(HATARI_OBJS)
 
 # The web UI's pages are compiled in. Regenerate them when they change.
 WEBUI_ASSETS = $(shell find src/webui/assets -type f)
@@ -107,7 +150,7 @@ src/webui/webui_assets.c: $(WEBUI_ASSETS) tools/gen_webui_assets.py
 	@echo "  GEN   $@"
 	@python3 tools/gen_webui_assets.py
 
-$(TARGET).img: $(KEGS_LIB)
+$(TARGET).img: $(HATARI_LIB)
 
 ifneq ($(filter 4 5,$(RASPPI)),)
 VIDEOCORE_LIBS :=
@@ -121,7 +164,7 @@ VIDEOCORE_LIBS := \
 	$(CIRCLEHOME)/addon/linux/liblinuxemu.a
 endif
 
-LIBS := $(KEGS_LIB) \
+LIBS := $(HATARI_LIB) \
 	$(CIRCLE_STDLIB_INSTALL_DIR)/lib/libm.a \
 	$(CIRCLE_STDLIB_INSTALL_DIR)/lib/libc.a \
 	$(CIRCLE_STDLIB_INSTALL_DIR)/lib/libcirclenewlib.a \

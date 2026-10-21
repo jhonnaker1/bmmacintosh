@@ -3,7 +3,7 @@
 //
 // Modified for BMA800XL: the Atari 800XL's name, settings file and the
 // file types atari800 can start, in place of BMC64's machines.
-// Changed for BMCoco and BMAtariST: the Apple II machine.
+// Changed for BMCoco and BMApple2, and for BMAtariST: the Atari ST.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -26,20 +26,19 @@
 #include <stdio.h>
 
 // The machine running (src/port/platform.c).
-extern "C" int bmatarist_machine(void);
-extern "C" const char *bmatarist_machine_name(int machine);
+extern "C" const char *bmatarist_machine_text(void);
 
 namespace {
 
-// The disk images KEGS can boot (emu_autostart_interrupt() in
-// src/port/platform.c puts them in a drive and restarts): 5.25" (DOS 3.3
-// and ProDOS order, nibbles, WOZ), 3.5" and hard disks.
+// The floppy images Hatari can start (emu_autostart_interrupt() in
+// src/port/platform.c puts them in drive A: and restarts the ST), zipped
+// or gzipped too.
 const char *const kRunTypes[] = {
-    "dsk", "do", "po", "nib", "woz", "2mg", "2img", "hdv", 0,
+    "st", "msa", "dim", "stx", "scp", "zip", "gz", 0,
 };
 
 const WebUiMachine kMachine = {
-    "/config.kegs", kRunTypes,
+    "/hatari.cfg", kRunTypes,
 };
 
 char Lower(char c) {
@@ -53,8 +52,7 @@ const WebUiMachine *WebUiMachineGet(void) {
 }
 
 const char *WebUiMachineName(void) {
-  int machine = bmatarist_machine();
-  return machine >= 0 ? bmatarist_machine_name(machine) : "";
+  return bmatarist_machine_text();
 }
 
 boolean WebUiMachineCanRun(const char *ext) {

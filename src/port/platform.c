@@ -205,6 +205,17 @@ void bmatarist_display_mode_changed(void)
 	apply_view();
 }
 
+/* ---- Machine ------------------------------------------------------------- */
+
+/* "Atari STE", for the web UI and the menu. */
+const char *bmatarist_machine_text(void)
+{
+	static const char *const names[] = {
+		"Atari ST", "Mega ST", "Atari STE", "Mega STE", "Atari TT", "Falcon 030"
+	};
+	return names[ConfigureParams.System.nMachineType % 6];
+}
+
 /* ---- Speed --------------------------------------------------------------- */
 
 static int speed_percent = 100;
@@ -325,14 +336,14 @@ static void describe_tos(const char *path, char *name, size_t size)
 		fclose(f);
 	}
 	if (got == sizeof head && memcmp(head + 0x2c, "ETOS", 4) == 0) {
-		snprintf(name, size, "EmuTOS (%s)", base);
+		snprintf(name, size, "EmuTOS (%.40s)", base);
 	} else if (got == sizeof head) {
 		unsigned country = (head[0x1d] >> 1) & 0x7f;
-		snprintf(name, size, "TOS %x.%02x %s (%s)", head[2], head[3],
+		snprintf(name, size, "TOS %x.%02x %s (%.40s)", head[2], head[3],
 		         country < sizeof countries / sizeof countries[0] ? countries[country] : "",
 		         base);
 	} else {
-		snprintf(name, size, "%s", base);
+		snprintf(name, size, "%.60s", base);
 	}
 }
 
@@ -712,7 +723,7 @@ void bmatarist_main(void)
 	argv[argc++] = hatari_cfg;
 	/* Sound at the output's rate (it's fixed: 44.1 kHz on the Pi Zero to
 	   3, 48 kHz over the Pi 4 and 5's HDMI). */
-	if (rate != 0) {
+	if (rate != 0 && option_on("sound", TRUE)) {
 		snprintf(rate_arg, sizeof rate_arg, "%u", rate);
 		argv[argc++] = "--sound";
 		argv[argc++] = rate_arg;

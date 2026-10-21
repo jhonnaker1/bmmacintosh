@@ -1,6 +1,6 @@
 # Build Instructions
 
-BMApple2 builds on Linux (Debian, Ubuntu, WSL) and macOS.
+BMAtariST builds on Linux (Debian, Ubuntu, WSL) and macOS.
 
 ## Prerequisites
 
@@ -25,17 +25,17 @@ uses `wget`; without them, `make_all.sh` and `make_wifi_firmware.sh` use
 stand-ins (the manuals aren't needed, and `curl` does the download).
 
 The Arm GNU Toolchain 15.2.rel1 is downloaded into
-`~/.cache/bmapple2/toolchains` the first time a build needs it
+`~/.cache/bmatarist/toolchains` the first time a build needs it
 (`get_gnu_toolchain.sh`), built for your computer (Linux or macOS):
 `arm-none-eabi` for the 32-bit Pi Zero, 2 and 3 kernels, `aarch64-none-elf`
 for the 64-bit Pi 4 and 5 kernels. If it can't be downloaded,
-`BMAPPLE2_ALLOW_ANY_TOOLCHAIN=1` lets the build use whatever
+`BMATARIST_ALLOW_ANY_TOOLCHAIN=1` lets the build use whatever
 `arm-none-eabi-gcc` (or `aarch64-none-elf-gcc`) is on the PATH.
 
 ## Downloading the files
 
 ```
-git clone --recursive https://github.com/jhonnaker1/bmapple2.git
+git clone --recursive https://github.com/jhonnaker1/bmatarist.git
 ```
 
 or, in an existing clone, `git submodule update --init --recursive`.
@@ -83,7 +83,7 @@ rebooted from there, without touching the SD card.
    `clean_all.sh` or a change to the patches or circle-stdlib. To change
    board, run `clean_all.sh` first (make_all.sh refuses otherwise).
 3. `source get_gnu_toolchain.sh && make` rebuilds just the kernel (for the
-   Pi 4 and 5: `BMAPPLE2_AARCH=64 source get_gnu_toolchain.sh && make`).
+   Pi 4 and 5: `BMATARIST_AARCH=64 source get_gnu_toolchain.sh && make`).
 4. `./make_wifi_firmware.sh DIR` puts the Wi-Fi firmware in `DIR/firmware`
    (`build_sdcard.sh` does this).
 
@@ -95,42 +95,36 @@ for how the Pi 4 and 5 builds differ.
 
 ## Testing on a PC
 
-`tools/hostsim` builds the emulator port (KEGS plus `src/port/`) for the
+`tools/hostsim` builds the emulator port (Hatari plus `src/port/`) for the
 PC, with a simulated display, sound and input in place of the Raspberry Pi.
-It runs scripted tests: booting, the display lock and timer pacing, the
-keyboard, gamepads, analog and digital joysticks, the menu, web UI requests
-(starting disk images in the right drive), ROMs made from MAME's chips,
-saved settings, and checking the sound stays in step with the display.
+It runs scripted tests, booting EmuTOS (fetched as for the SD card) to its
+desktop: the display lock and timer pacing, the sound at 44.1 and 48 kHz,
+the keyboard and mouse, the menu, saved settings and states, switching
+machines, a folder as drive C:, web UI requests and the power key.
 
 ```
 tools/hostsim/run_tests.sh
-BMAPPLE2_ROMS=/path/to/your/roms tools/hostsim/run_tests.sh
 ```
 
-Apple's ROMs can't be distributed, so the tests run a small stand-in ROM
-that `tools/hostsim/make_test_rom.py` assembles, which KEGS runs as a IIe:
-it shows whether a key is down, the paddles, the buttons and a frame
-counter, and clicks the speaker. With `BMAPPLE2_ROMS` set to a folder with a
-IIgs ROM (`ROM.03` or `ROM.01`), the IIgs is tested too. Screenshots
-(`.ppm`) are written to `tools/hostsim/out/`.
+Screenshots (`.ppm`) are written to `tools/hostsim/out/`.
 
 To play with the port on the PC, run it live:
 
 ```
-tools/hostsim/live.sh /path/to/your/roms
+tools/hostsim/live.sh
 ```
 
-and open http://127.0.0.1:8064/ in a browser: the screen, keyboard, sound
-and gamepads (through the browser's Gamepad API) are in the page. The
-simulator's SD card is `tools/hostsim/out/live`; disks, tapes and programs
-copied there can be mounted with F4. This runs BMApple2's port and KEGS
-on the PC, not the Pi kernel (no emulator shows the Pi's VideoCore
-display). The web page is served on 127.0.0.1 only.
+and open http://127.0.0.1:8064/ in a browser: the screen, keyboard, mouse,
+sound and gamepads (through the browser's Gamepad API) are in the page. The
+simulator's SD card is `tools/hostsim/out/live`, set up as the Pi's. This
+runs BMAtariST's port and Hatari on the PC, not the Pi kernel (no emulator
+shows the Pi's VideoCore display). The web page is served on 127.0.0.1
+only.
 
-The simulator can also be driven by a script of key presses and
-screenshots; see the top of `tools/hostsim/host_sim.c` for the commands.
-[SIMULATOR.md](SIMULATOR.md) has more: setting it up, debugging it with
-gdb, lldb or strace, and getting a log from the Pi.
+The simulator can also be driven by a script of key presses, mouse moves
+and screenshots; see the top of `tools/hostsim/host_sim.c` for the
+commands. [SIMULATOR.md](SIMULATOR.md) has more: setting it up, debugging
+it with gdb, lldb or strace, and getting a log from the Pi.
 
 `tools/pi4scaler` tests the shared Pi 4/5 ARM smooth scaling and CRT shader
 (`src/av/scaler.*`): every pixel is checked against crt-pi worked out in
@@ -165,20 +159,25 @@ with `tools/gen_webui_assets.py` whenever an asset changes.
 | `src/vchiqsound*`            | Sound through the VideoCore (from BMC64)    |
 | `src/options.*`              | `cmdline.txt` options                       |
 | `src/host.h`                 | Interface between kernel and emulator       |
-| `src/port/platform.c`        | KEGS's front end: picture, keyboard, mouse, ROMs, web UI requests; timing; main loop |
-| `src/port/snddrv.c`          | KEGS's sound output (for its sound_driver.c) |
-| `src/port/joystick.c`        | Gamepads and GPIO joysticks as the Apple II's joystick (for KEGS's joystick_driver.c) |
-| `src/port/keymap.c`          | USB HID usages to ADB key codes             |
+| `src/port/platform.c`        | Hatari's front end: starting it, TOS images, the frame loop, writing floppies back, web UI requests |
+| `src/port/screen.c`          | Hatari's picture to the display (for its src/sdl/screen.c) |
+| `src/port/audio.c`           | Hatari's sound output, kept in step with the display |
+| `src/port/timing.c`          | Stops Hatari's CPU at each VBL for the frame loop |
+| `src/port/keymap.c`          | USB HID usages to ST scan codes             |
+| `src/port/gui_event.c`       | Keyboard, mouse and gamepads into Hatari    |
+| `src/port/joy_ui.c`          | Gamepads and GPIO joysticks as the ST's joysticks |
+| `src/port/statusbar.c`       | The disk activity light                     |
+| `src/port/microphone.c`      | The Falcon's microphone, which has nothing to record |
 | `src/port/menu.c`, `osd.c`   | The menu and its on-screen display          |
-| `src/port/scc_stub.c`        | KEGS's host serial port driver, for a Pi with none |
-| `src/port/scc_socket_driver.c` | KEGS's virtual modem, changed for Circle's sockets and dialling in the background (marked `BMAPPLE2`) |
 | `src/port/fswrap.c`          | `stat()` of the SD card's root, which FatFs can't do (`--wrap=stat`) |
-| `src/port/posix_extra.c`     | waitpid() for newlib                        |
-| `src/port/compat/`           | Empty stand-ins for headers newlib lacks    |
-| `src/port/kegs.mk`           | Which KEGS sources are built                |
+| `src/port/posix_extra.c`     | scandir(), utime(), access(), chmod() for newlib |
+| `src/port/compat/`           | Included before Hatari's files              |
+| `src/port/config.h`          | Hatari's build options                      |
+| `src/port/hatari.mk`         | Which Hatari and zlib sources are built     |
 | `src/patches/`               | Changes applied to Circle by `make_all.sh`  |
 | `sdcard/`                    | Files for the SD card                       |
-| `third_party/kegs`           | KEGS (submodule)                            |
+| `third_party/hatari`         | Hatari (submodule)                          |
+| `third_party/zlib`           | zlib (submodule)                            |
 | `third_party/circle-stdlib`  | Circle and newlib (submodule)               |
 | `src/av/`                    | Shared Pi 4/5 video, ARM scaling / CRT shader and sound |
 | `src/v3d/`                   | Shared Pi 4/5 GPU driver and CRT rendering  |

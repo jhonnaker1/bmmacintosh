@@ -17,7 +17,7 @@
 //
 // Modified for BMA800XL: always built, with the BMA800XL host name,
 // version and power and reset requests; BMC64's profiles are removed.
-// Changed for BMCoco and BMAtariST: the Apple II machine, files and colours.
+// Changed for BMCoco and BMApple2, and for BMAtariST: the Atari ST machine and files.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.

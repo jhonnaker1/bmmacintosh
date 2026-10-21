@@ -6,7 +6,8 @@
  * having been included before them (debug/symbols.h, for one), which other
  * builds happen to do; they are included here first, so every file builds
  * on its own. And on the Pi, scandir() and alphasort(), which newlib's
- * <dirent.h> doesn't declare (they are posix_extra.c's).
+ * <dirent.h> doesn't declare, and utime(), which its <utime.h> doesn't
+ * (they are posix_extra.c's).
  *
  * This file is part of BMAtariST, a bare metal Atari ST emulator for the
  * Raspberry Pi. See LICENSE for licensing details.
@@ -26,6 +27,8 @@ int scandir(const char *dirname, struct dirent ***namelist,
             int (*filter)(const struct dirent *),
             int (*compare)(const struct dirent **, const struct dirent **));
 int alphasort(const struct dirent **a, const struct dirent **b);
+struct utimbuf;
+int utime(const char *path, const struct utimbuf *times);
 #endif
 
 #endif /* BMATARIST_HATARI_PREFIX_H_ */

@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# Cleans everything: the kernel, the compiled KEGS library, the SD card
+# Cleans everything: the kernel, the compiled Hatari library, the SD card
 # staging folder, and the third party builds inside circle-stdlib (which is
 # also reset to its pinned revision, undoing src/patches/).
 #

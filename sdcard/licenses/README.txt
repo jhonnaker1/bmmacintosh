@@ -5,7 +5,10 @@ BMAtariST itself is under the GNU General Public License version 3
 (LICENSE.txt in the root of the card). It includes code from other
 projects; this folder has their notices and licences:
 
-  kegs.txt        The KEGS emulator (GPL version 3).
+  hatari.txt      The Hatari emulator (GPL version 2 or later), with the
+                  SoftFloat notice for its floating point emulation.
+  emutos.txt      EmuTOS, the free TOS in the tos folder (GPL version 2).
+  zlib.txt        The zlib compression library (zlib licence).
   crt-pi.txt      The crt-pi CRT shader by davej (GPL version 2 or later).
   Mesa-MIT.txt    Material from the Mesa 3D graphics library's Broadcom
                   V3D drivers, for the Raspberry Pi 4 and Pi 5 GPU (MIT).

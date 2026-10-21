@@ -55,7 +55,9 @@ REQUIRED_FILES=(
     "LICENSE.txt"
     "README.txt"
     "licenses/README.txt"
-    "licenses/kegs.txt"
+    "licenses/hatari.txt"
+    "licenses/emutos.txt"
+    "licenses/zlib.txt"
     "licenses/Apache-2.0.txt"
     "licenses/crt-pi.txt"
     "licenses/GPL-2.0.txt"
@@ -91,7 +93,11 @@ REQUIRED_FILES=(
 
     # User folders: the READMEs keep them in zip files
     "disks/README.txt"
-    "roms/ROMS.txt"
+    "hd/README.txt"
+    "tos/TOS.txt"
+
+    # EmuTOS (make_emutos.sh)
+    "tos/etos1024k.img"
 )
 
 RELEASE=0

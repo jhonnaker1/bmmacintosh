@@ -25,16 +25,16 @@ export async function loadMachine() {
   }
 }
 
-// Machine name, e.g. "Apple IIgs, ROM 3" or "Apple IIe".
+// Machine name, e.g. "Atari STE".
 export const machineName = () => current.name;
 
-// Without the ROM: "Apple IIgs".
+// The part before any comma (the whole name, for the ST).
 export const machineShortName = () => current.name.split(",")[0] || "machine";
 
 // Name for display.
 export const machineDisplayName = () => current.name || "machine";
 
-// The emulator's settings file, "/config.kegs".
+// The emulator's settings file, "/hatari.cfg".
 export const mainSettingsFile = () => current.settings;
 
 // Whether Autostart accepts files with this extension.

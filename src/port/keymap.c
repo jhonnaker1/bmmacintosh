@@ -51,11 +51,11 @@ static const uint8_t usage_to_st[0xe8] = {
 	[0x2e] = 0x0d,  /* = */
 	[0x2f] = 0x1a,  /* [ */
 	[0x30] = 0x1b,  /* ] */
-	[0x31] = 0x2b,  /* \ */
+	[0x31] = 0x29,  /* \ (as Hatari's own table, sdl/keymap.c) */
 	[0x32] = 0x2b,  /* # (ISO keyboards, next to Return) */
 	[0x33] = 0x27,  /* ; */
 	[0x34] = 0x28,  /* ' */
-	[0x35] = 0x29,  /* ` */
+	[0x35] = 0x2b,  /* ` */
 	[0x36] = 0x33,  /* , */
 	[0x37] = 0x34,  /* . */
 	[0x38] = 0x35,  /* / */
@@ -102,6 +102,9 @@ static const uint8_t usage_to_st[0xe8] = {
    (both Controls, Help) stays down until both are up. */
 static uint8_t held[128];
 
+/* Which PC keys' presses went to a joystick port (Joy_KeyDown()). */
+static uint8_t to_joystick[sizeof usage_to_st];
+
 static void st_key(uint8_t code, int pressed)
 {
 	if (code == NO_KEY || code >= 128)
@@ -122,15 +125,31 @@ void bmatarist_key(int usage, int pressed)
 	if (usage < 0 || usage >= (int) sizeof usage_to_st)
 		return;
 	/* A joystick port on the arrow keys (Hatari's joy.c, which is given
-	   the USB HID usage as its host key code) takes them first. */
-	if (pressed ? Joy_KeyDown(usage) : Joy_KeyUp(usage))
+	   the USB HID usage as its host key code) takes them first, unless
+	   Shift is held: then they are the ST's arrow keys. A key's release
+	   goes where its press went. */
+	if (pressed) {
+		to_joystick[usage] = !Keymap_IsShiftPressed() && Joy_KeyDown(usage);
+		if (to_joystick[usage])
+			return;
+	} else if (to_joystick[usage]) {
+		to_joystick[usage] = FALSE;
+		Joy_KeyUp(usage);
 		return;
+	}
 	st_key(usage_to_st[usage], pressed);
 }
 
 void bmatarist_release_keys(void)
 {
+	unsigned usage;
 	int code;
+	for (usage = 0; usage < sizeof to_joystick; usage++) {
+		if (to_joystick[usage]) {
+			to_joystick[usage] = FALSE;
+			Joy_KeyUp((int) usage);
+		}
+	}
 	for (code = 0; code < 128; code++) {
 		if (held[code] > 0) {
 			held[code] = 1;
@@ -144,6 +163,7 @@ void bmatarist_release_keys(void)
 void Keymap_Init(void)
 {
 	memset(held, 0, sizeof held);
+	memset(to_joystick, 0, sizeof to_joystick);
 }
 
 void Keymap_InitShortcutDefaultKeys(void)

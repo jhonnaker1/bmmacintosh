@@ -462,7 +462,7 @@ int osd_menu(const char *title, const struct osd_item *items, int n, int *select
 		if (sel >= top + LIST_ROWS)
 			top = sel - LIST_ROWS + 1;
 
-		draw_frame(title, "Enter: choose   Esc: back   F10: close");
+		draw_frame(title, "Enter: choose   Esc: back   F12: close");
 		for (i = 0; i < LIST_ROWS && top + i < n; i++)
 			draw_item(LIST_TOP + i, &items[top + i], top + i == sel);
 		if (top > 0)
