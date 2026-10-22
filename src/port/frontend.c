@@ -1,0 +1,707 @@
+/*
+ * frontend.c - the frame loop's half that both of BMMacintosh's emulators
+ * share.
+ *
+ * On top of the Circle kernel's services (src/host.h): the display (the
+ * Mac's screen copied to it each frame, its size and aspect), pacing (each
+ * frame on a display refresh when the display runs at the Mac's 60.15 Hz,
+ * or close to it, which keeps scrolling smooth; a timer otherwise), the
+ * sound output, the keyboard, mouse and gamepads, the disk activity light,
+ * the menu, and the web UI's requests. The emulators (src/port/ii/ and
+ * src/port/plus/) run the Mac a frame at a time and call bmmac_frame()
+ * after each.
+ *
+ * From BMAtariST's platform.c, audio.c and gui_event.c.
+ *
+ * This file is part of BMMacintosh, a bare metal 68k Macintosh emulator for
+ * the Raspberry Pi. See LICENSE for licensing details.
+ */
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+
+#include "../host.h"
+#include "bmmac.h"
+#include "osd.h"
+
+/* ---- Settings ------------------------------------------------------------- */
+
+const char *bmmac_sd_root(void)
+{
+	return host_option("root", "/");
+}
+
+void bmmac_card_path(char *path, unsigned size, const char *dir, const char *name)
+{
+	const char *root = bmmac_sd_root();
+	size_t len = strlen(root);
+	snprintf(path, size, "%s%s%s%s%s", root, len > 0 && root[len - 1] == '/' ? "" : "/",
+	         dir, dir[0] ? "/" : "", name);
+}
+
+int bmmac_setting_on(const char *name, int default_value)
+{
+	const char *value = host_option(name, NULL);
+	if (value == NULL || *value == '\0')
+		return default_value;
+	return strcmp(value, "1") == 0 || strcmp(value, "on") == 0
+	    || strcmp(value, "yes") == 0 || strcmp(value, "true") == 0;
+}
+
+int bmmac_save_setting(const char *name, const char *value)
+{
+	if (host_option_set(name, value) && host_options_save())
+		return TRUE;
+	printf("BMMacintosh: cannot save %s= in bmmac.cfg\n", name);
+	return FALSE;
+}
+
+const char *bmmac_machine_text(void)
+{
+	return emu_machine_text();
+}
+
+/* ---- Video ------------------------------------------------------------------- */
+
+static uint16_t *fb_pixels;
+static int fb_pitch_px;
+static int osd_view;
+
+static double refresh_rate = 60.0;
+static int vsync_lock;
+
+uint16_t *bmmac_framebuffer(int *pitch_px)
+{
+	*pitch_px = fb_pitch_px;
+	return fb_pixels;
+}
+
+static void clear_framebuffer(void)
+{
+	int y;
+	for (y = 0; y < BMMAC_FB_H; y++)
+		memset(fb_pixels + y * fb_pitch_px, 0, BMMAC_FB_W * 2);
+}
+
+static void apply_view(void)
+{
+	int w, h;
+	double aspect;
+	if (osd_view) {
+		host_video_set_view(0, 0, 640, 460, 640.0 / 460.0);
+		return;
+	}
+	emu_screen_view(&w, &h, &aspect);
+	host_video_set_view(0, 0, w, h, aspect * host_option_double("aspect", 1.0));
+}
+
+void bmmac_osd_view(int on)
+{
+	osd_view = on;
+	if (!on)
+		clear_framebuffer();
+	apply_view();
+	if (!on)
+		emu_screen_copy(fb_pixels, fb_pitch_px, TRUE);
+}
+
+void bmmac_screen_changed(void)
+{
+	if (fb_pixels == NULL || osd_view)
+		return;
+	clear_framebuffer();
+	apply_view();
+	emu_screen_copy(fb_pixels, fb_pitch_px, TRUE);
+}
+
+static void measure_refresh_rate(void)
+{
+	enum { SKIP = 3, COUNT = 20 };
+	double start = 0.0, rate;
+	int i;
+	for (i = 0; i < SKIP + COUNT; i++) {
+		host_video_present(TRUE);
+		if (i == SKIP - 1)
+			start = host_time();
+	}
+	rate = COUNT / (host_time() - start);
+	if (rate > 20.0 && rate < 250.0)
+		refresh_rate = rate;
+	printf("BMMacintosh: display refresh rate %.3f Hz\n", refresh_rate);
+}
+
+static void update_sync_mode(void)
+{
+	const char *mode = host_option("vsync", "auto");
+	double rate = emu_frame_rate();
+	if (strcmp(mode, "off") == 0 || strcmp(mode, "0") == 0)
+		vsync_lock = FALSE;
+	else if (strcmp(mode, "on") == 0 || strcmp(mode, "1") == 0)
+		vsync_lock = TRUE;
+	else {
+		double ratio = refresh_rate / rate;
+		vsync_lock = ratio > 0.98 && ratio < 1.02;
+	}
+	printf("BMMacintosh: display %.2f Hz, Mac %.2f Hz, %s\n", refresh_rate, rate,
+	       vsync_lock ? "synchronised to the display" : "timer paced");
+}
+
+double bmmac_refresh_rate(void)
+{
+	return refresh_rate;
+}
+
+int bmmac_vsync_locked(void)
+{
+	return vsync_lock;
+}
+
+void bmmac_video_settings_changed(void)
+{
+	if (fb_pixels == NULL)
+		return;
+	update_sync_mode();
+	clear_framebuffer();
+	apply_view();
+}
+
+void bmmac_display_mode_changed(void)
+{
+	/* Where the host can set the video mode (the Pi 4 and 5), the display
+	   runs at the Mac's rate. */
+	if (host_display_match_rate(emu_frame_rate()))
+		measure_refresh_rate();
+	update_sync_mode();
+	host_sound_close();
+	bmmac_sound_rate();
+	apply_view();
+}
+
+/* ---- Sound ------------------------------------------------------------------- */
+
+#define AO_RATE 48000
+
+static unsigned out_rate;            /* 0: no sound */
+static unsigned out_latency;         /* frames */
+static int sound_opened;
+static int16_t silence[2048 * 2];
+static int volume = -1;              /* 0-100, -1 until read */
+
+int bmmac_volume(void)
+{
+	if (volume < 0) {
+		volume = host_option_int("volume", 100);
+		if (volume < 0)
+			volume = 0;
+		if (volume > 100)
+			volume = 100;
+	}
+	return volume;
+}
+
+void bmmac_set_volume(int v)
+{
+	char text[8];
+	volume = v < 0 ? 0 : v > 100 ? 100 : v;
+	snprintf(text, sizeof text, "%d", volume);
+	bmmac_save_setting("volume", text);
+}
+
+/* Opens the output the first time: 48 kHz where it can be (the Pi 4 and
+   5's HDMI), 44.1 kHz on the Pi Zero to 3, whose VideoCore plays at that
+   rate. The latency is asked for in 44.1 kHz frames (host.h). */
+unsigned bmmac_sound_rate(void)
+{
+	unsigned ms;
+	if (sound_opened)
+		return out_rate;
+	sound_opened = TRUE;
+	if (!bmmac_setting_on("sound", TRUE))
+		return out_rate = 0;
+	ms = (unsigned) host_option_int("audio_buffer_ms", 60);
+	if (ms < 20)
+		ms = 20;
+	if (ms > 500)
+		ms = 500;
+	out_rate = host_sound_open(AO_RATE, 2, 44100 * ms / 1000);
+	out_latency = (out_rate ? out_rate : AO_RATE) * ms / 1000;
+	if (out_rate == 0)
+		printf("BMMacintosh: no sound\n");
+	return out_rate;
+}
+
+/* N stereo frames to the output, at the volume. */
+static void write_frames(const int16_t *samples, unsigned n)
+{
+	static int16_t scaled[1024 * 2];
+	int v = bmmac_volume();
+	if (v >= 100) {
+		host_sound_write(samples, n);
+		return;
+	}
+	while (n > 0) {
+		unsigned chunk = n > 1024 ? 1024 : n, i;
+		for (i = 0; i < chunk * 2; i++)
+			scaled[i] = (int16_t) (samples[i] * v / 100);
+		host_sound_write(scaled, chunk);
+		samples += chunk * 2;
+		n -= chunk;
+	}
+}
+
+unsigned bmmac_sound_wanted(void)
+{
+	unsigned free_frames, used;
+	if (out_rate == 0)
+		return 0;
+	free_frames = host_sound_free_frames();
+	used = free_frames < out_latency ? out_latency - free_frames : 0;
+	return used < out_latency / 2 ? out_latency / 2 - used : 0;
+}
+
+void bmmac_feed_silence(void)
+{
+	unsigned frames;
+	if (out_rate == 0)
+		return;
+	frames = host_sound_free_frames();
+	if (frames > out_latency / 2) {
+		frames -= out_latency / 2;
+		while (frames > 0) {
+			unsigned n = frames > 2048 ? 2048 : frames;
+			host_sound_write(silence, n);
+			frames -= n;
+		}
+	}
+}
+
+#define PLAY_CHUNK 512
+
+/* N stereo frames resampled to WANT (linear interpolation, in 16.16 fixed
+   point) into OUT. */
+static void resample(const int16_t *in, unsigned n, int16_t *out, unsigned want)
+{
+	unsigned i, ch;
+	for (i = 0; i < want; i++) {
+		uint32_t pos = want > 1 ? (uint32_t) (((uint64_t) i * (n - 1) << 16) / (want - 1)) : 0;
+		unsigned k = pos >> 16;
+		int frac = (int) (pos & 0xffff);
+		for (ch = 0; ch < 2; ch++) {
+			int a = in[k * 2 + ch];
+			int b = k + 1 < n ? in[(k + 1) * 2 + ch] : a;
+			out[i * 2 + ch] = (int16_t) (a + (((b - a) * frac) >> 16));
+		}
+	}
+}
+
+/* Up to PLAY_CHUNK stereo frames to the output, squeezed or stretched to
+   keep the buffer about half full: the Mac's 60.15 Hz locked to a 60 Hz
+   display runs 0.25% fast. */
+static void play_chunk(const int16_t *samples, unsigned n)
+{
+	static int16_t buf[(PLAY_CHUNK * 2 + 1) * 2];
+	static double carry;   /* the fraction of a frame left over */
+	unsigned free_frames, used, want;
+	free_frames = host_sound_free_frames();
+	used = free_frames < out_latency ? out_latency - free_frames : 0;
+	if (n < 2) {
+		want = n;
+	} else if (used < out_latency / 4) {
+		/* Running dry (the emulation slower than real time): stretched
+		   to up to twice its length, lower in pitch, rather than gaps. */
+		unsigned quarter = out_latency / 4;
+		want = n + 1 + n * (quarter - used) / quarter;
+		if (want > PLAY_CHUNK * 2 + 1)
+			want = PLAY_CHUNK * 2 + 1;
+		carry = 0.0;
+	} else {
+		double half = out_latency / 2.0;
+		double error = (half - used) / half;   /* 1 empty, -1 full */
+		double exact;
+		if (error > 1.0)
+			error = 1.0;
+		if (error < -1.0)
+			error = -1.0;
+		exact = n * (1.0 + 0.02 * error) + carry;
+		want = (unsigned) exact;
+		carry = exact - want;
+	}
+	if (want != n) {
+		resample(samples, n, buf, want);
+		samples = buf;
+		n = want;
+	}
+	if (n > free_frames)
+		n = free_frames;          /* no room at all (far ahead): drop it */
+	if (n > 0)
+		write_frames(samples, n);
+}
+
+void bmmac_sound_play(const int16_t *samples, unsigned n)
+{
+	if (out_rate == 0)
+		return;
+	while (n > 0) {
+		unsigned m = n > PLAY_CHUNK ? PLAY_CHUNK : n;
+		play_chunk(samples, m);
+		samples += m * 2;
+		n -= m;
+	}
+}
+
+/* ---- Disk activity --------------------------------------------------------- */
+
+static int da_enabled = -1;
+static double disk_used_at = -10.0;
+
+int bmmac_disk_activity(void)
+{
+	if (da_enabled < 0)
+		da_enabled = host_option_int("disk_activity", 1) != 0;
+	return da_enabled;
+}
+
+void bmmac_set_disk_activity(int on)
+{
+	da_enabled = on != 0;
+}
+
+void bmmac_disk_accessed(void)
+{
+	disk_used_at = host_time();
+}
+
+/* The light: a small red square in the bottom right corner of the Mac's
+   screen while a disk is used, and for a moment after. Returns TRUE if it
+   drew (or has just stopped drawing). */
+static int draw_disk_light(int w, int h)
+{
+	static int was_on;
+	int on = bmmac_disk_activity() && host_time() - disk_used_at < 0.25;
+	int x, y;
+	if (!on && !was_on)
+		return FALSE;
+	was_on = on;
+	if (!on)
+		return TRUE;
+	for (y = h - 10; y < h - 4; y++)
+		for (x = w - 14; x < w - 4; x++)
+			if (x >= 0 && y >= 0)
+				fb_pixels[y * fb_pitch_px + x] = 0xf800;
+	return TRUE;
+}
+
+/* ---- Input ------------------------------------------------------------------- */
+
+static int menu_requested;
+static int pad_last[HOST_PADS];
+
+static void request_power_key(void);
+
+static void keyboard(void)
+{
+	int usage, pressed;
+	while (host_key_event(&usage, &pressed)) {
+		int code;
+		/* The power key: Shut Down (the Pi 400 sends it for Fn+F10). */
+		if (usage == USAGE_POWER) {
+			if (pressed)
+				request_power_key();
+			continue;
+		}
+		if (usage == KEY_MENU) {
+			if (pressed)
+				menu_requested = TRUE;
+			continue;
+		}
+		code = bmmac_mac_keycode(usage);
+		if (code >= 0)
+			emu_key(code, pressed);
+	}
+}
+
+/* The mouse, and the gamepads as one: the d-pad or stick moves the pointer,
+   A is the button. X is Space and Y Return, for games. Home, or Select and
+   Start together, open the menu. */
+static void mouse_and_pads(void)
+{
+	static int last_buttons = -1;
+	static double pad_fx, pad_fy;
+	int dx = 0, dy = 0, buttons = 0, pad;
+	int mdx, mdy, mbuttons;
+	if (host_mouse_read(&mdx, &mdy, &mbuttons)) {
+		dx += mdx;
+		dy += mdy;
+		buttons |= mbuttons & 1;
+	}
+	for (pad = 0; pad < HOST_PADS; pad++) {
+		int state = host_pad_state(pad), menu, ax, ay;
+		double fx = 0.0, fy = 0.0;
+		if (state < 0)
+			state = 0;
+		menu = (state & HOST_PAD_HOME)
+		       || ((state & HOST_PAD_SELECT) && (state & HOST_PAD_START));
+		if (menu && !(pad_last[pad] & 0x10000))
+			menu_requested = TRUE;
+		if (state & HOST_PAD_LEFT) fx -= 1.0;
+		if (state & HOST_PAD_RIGHT) fx += 1.0;
+		if (state & HOST_PAD_UP) fy -= 1.0;
+		if (state & HOST_PAD_DOWN) fy += 1.0;
+		ax = host_pad_axis(pad, 0);
+		ay = host_pad_axis(pad, 1);
+		if (ax >= 0 && ay >= 0) {
+			double sx = (ax - 32768) / 32768.0, sy = (ay - 32768) / 32768.0;
+			if (sx > 0.2 || sx < -0.2) fx += sx;
+			if (sy > 0.2 || sy < -0.2) fy += sy;
+		}
+		/* Up to six pixels a frame (360 a second). */
+		pad_fx += fx * 6.0;
+		pad_fy += fy * 6.0;
+		if (state & HOST_PAD_A)
+			buttons |= 1;
+		if ((state ^ pad_last[pad]) & HOST_PAD_X)
+			emu_key(0x31, (state & HOST_PAD_X) != 0);    /* Space */
+		if ((state ^ pad_last[pad]) & HOST_PAD_Y)
+			emu_key(0x24, (state & HOST_PAD_Y) != 0);    /* Return */
+		pad_last[pad] = (state & 0xffff) | (menu ? 0x10000 : 0);
+	}
+	dx += (int) pad_fx;
+	dy += (int) pad_fy;
+	pad_fx -= (int) pad_fx;
+	pad_fy -= (int) pad_fy;
+	if (dx != 0 || dy != 0 || buttons != last_buttons) {
+		emu_mouse(dx, dy, buttons);
+		last_buttons = buttons;
+	}
+}
+
+/* ---- Requests from the web UI ------------------------------------------------ */
+
+static volatile int request_power = -1;   /* 0 reboot, 1 power off */
+static volatile int request_coldstart = FALSE;
+static char autostart_path[600];
+static volatile int request_autostart = FALSE;
+
+void bmmac_request_power(int power_off)
+{
+	request_power = power_off ? 1 : 0;
+}
+
+static void request_power_key(void)
+{
+	request_power = 1;
+}
+
+void bmmac_request_coldstart(void)
+{
+	request_coldstart = TRUE;
+}
+
+/* Called by the web UI ("start this file"), on core 0: the emulator takes
+   it up between frames (handle_requests()). One at a time. */
+void emu_autostart_interrupt(const char *path)
+{
+	if (request_autostart)
+		return;
+	snprintf(autostart_path, sizeof autostart_path, "%s", path);
+	__sync_synchronize();
+	request_autostart = TRUE;
+}
+
+int bmmac_pending_requests(void)
+{
+	return request_power >= 0 || request_coldstart || request_autostart;
+}
+
+static void sync_files(void)
+{
+	int fd;
+	fflush(NULL);
+	for (fd = 3; fd < 30; fd++)
+		fsync(fd);
+}
+
+static void power(int off)
+{
+	printf("%s\n", off ? "Shutting down" : "Rebooting");
+	emu_sync_disks();
+	sync_files();
+	if (off)
+		host_power_off();
+	else
+		host_reboot();
+}
+
+static void handle_requests(void)
+{
+	if (request_autostart) {
+		__sync_synchronize();
+		printf("Web UI: starting %s\n", autostart_path);
+		emu_autostart(autostart_path);
+		request_autostart = FALSE;
+	}
+	if (request_coldstart) {
+		request_coldstart = FALSE;
+		printf("Web UI: restart\n");
+		emu_cold_reset();
+	}
+	if (request_power >= 0) {
+		int off = request_power;
+		request_power = -1;
+		power(off);
+	}
+}
+
+static double last_sync_time;
+
+void bmmac_idle(void)
+{
+	double now = host_time();
+	bmmac_feed_silence();
+	if (now - last_sync_time >= 1.0) {
+		last_sync_time = now;
+		emu_sync_disks();
+		sync_files();
+	}
+	if (request_power >= 0)
+		handle_requests();
+}
+
+/* ---- The frame --------------------------------------------------------------- */
+
+static int speed_percent = 100;
+static double frame_due;
+static double last_second;
+static long frames, frames_at_second;
+
+int bmmac_speed_percent(void)
+{
+	return speed_percent;
+}
+
+static void show_network_address(void)
+{
+	static int shown;
+	char address[32];
+	if (shown || !bmmac_setting_on("webui", TRUE))
+		return;
+	if (host_network_address(address, sizeof(address))) {
+		char text[64];
+		snprintf(text, sizeof(text), "Web UI: http://%s/", address);
+		osd_notify(text);
+		shown = TRUE;
+	}
+}
+
+void bmmac_frame(void)
+{
+	double now;
+
+	if (!osd_view) {
+		/* What's drawn over the Mac's screen (a notification, the disk
+		   light) is drawn again over a fresh copy of it each frame. */
+		static int overlay_drawn;
+		int w, h;
+		double aspect;
+		emu_screen_copy(fb_pixels, fb_pitch_px, overlay_drawn);
+		emu_screen_view(&w, &h, &aspect);
+		overlay_drawn = osd_draw_notification(fb_pixels, fb_pitch_px, w, h);
+		overlay_drawn |= draw_disk_light(w, h);
+	}
+	host_video_present(vsync_lock);
+	if (!vsync_lock) {
+		/* Paced by the clock instead. */
+		double period = 1.0 / emu_frame_rate();
+		now = host_time();
+		if (frame_due == 0.0 || now - frame_due > 0.25)
+			frame_due = now;
+		frame_due += period;
+		if (frame_due > now)
+			host_sleep_us((unsigned) ((frame_due - now) * 1000000.0));
+	}
+	frames++;
+
+	keyboard();
+	mouse_and_pads();
+	if (menu_requested) {
+		menu_requested = FALSE;
+		emu_release_keys();
+		bmmac_menu();
+		apply_view();
+		emu_screen_copy(fb_pixels, fb_pitch_px, TRUE);
+		frame_due = 0.0;
+		last_second = host_time();
+		frames_at_second = frames;
+	}
+
+	now = host_time();
+	if (now - last_second >= 1.0) {
+		speed_percent = (int) ((frames - frames_at_second) / (now - last_second)
+		                       / emu_frame_rate() * 100.0 + 0.5);
+		last_second = now;
+		frames_at_second = frames;
+		emu_sync_disks();
+		sync_files();
+		show_network_address();
+	}
+	handle_requests();
+}
+
+void bmmac_stopped(const char *why)
+{
+	char text[400];
+	snprintf(text, sizeof text, "%s\n\nF12: the menu.", why);
+	for (;;) {
+		int usage, pressed, key = -1;
+		osd_open();
+		osd_message(text, FALSE);
+		while (key < 0) {
+			bmmac_idle();
+			host_video_present(TRUE);
+			if (request_coldstart || request_autostart) {
+				handle_requests();
+				osd_close();
+				return;
+			}
+			while (host_key_event(&usage, &pressed))
+				if (pressed)
+					key = usage;
+		}
+		if (key == USAGE_POWER) {
+			bmmac_request_power(1);
+			bmmac_idle();
+		}
+		if (key != KEY_MENU) {
+			osd_close();
+			return;
+		}
+		/* The menu, and then try again. */
+		bmmac_menu();
+		osd_close();
+		return;
+	}
+}
+
+/* ---- Starting ---------------------------------------------------------------- */
+
+void bmmac_main(void)
+{
+	int pitch;
+	if (host_video_init(BMMAC_FB_W, BMMAC_FB_H, &fb_pixels, &pitch) != 0) {
+		printf("BMMacintosh: no display\n");
+		for (;;)
+			host_sleep_us(1000000);
+	}
+	fb_pitch_px = pitch / 2;
+	clear_framebuffer();
+	apply_view();
+	host_display_match_rate(emu_frame_rate());
+	measure_refresh_rate();
+	update_sync_mode();
+	bmmac_sound_rate();
+	bmmac_rom_scan();
+	last_second = host_time();
+	emu_main();
+}

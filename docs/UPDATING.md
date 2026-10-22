@@ -4,11 +4,11 @@
 
 Hatari is a git submodule in `third_party/hatari`, from
 `https://github.com/hatari/hatari.git` (the official mirror of
-https://framagit.org/hatari/hatari). BMAtariST follows its master branch
+https://framagit.org/hatari/hatari). BMMacintosh follows its master branch
 rather than a release: after 2.6.1 Hatari split its user interfaces out of
 the emulation core (`src/sdl/` for SDL, `src/retro/` for its libretro core),
-which is the seam BMAtariST's front end fits into. It is used unmodified;
-everything specific to BMAtariST is in `src/port/`:
+which is the seam BMMacintosh's front end fits into. It is used unmodified;
+everything specific to BMMacintosh is in `src/port/`:
 
 | File | What it has to do with Hatari |
 |---|---|
@@ -40,7 +40,7 @@ To move to a newer Hatari:
    `src/cpu/CMakeLists.txt`, `src/falcon/CMakeLists.txt` and
    `src/debug/CMakeLists.txt` with `src/port/hatari.mk`, and add or remove
    files. Compare `cmake/config-cmake.h` with `src/port/config.h`. Compare
-   the functions in `src/retro/` (the front end closest to BMAtariST's)
+   the functions in `src/retro/` (the front end closest to BMMacintosh's)
    with `src/port/`: new functions, changed signatures, new calls at start
    up in `retro_init()` and `retro_run()`.
 3. Build and test on the PC first: `tools/hostsim/run_tests.sh`, and try

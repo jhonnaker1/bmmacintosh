@@ -10,10 +10,10 @@ build/
 .board
 
 # Release archives
-bmatarist-*.zip
+bmmacintosh-*.zip
 
 # PC test harness
-tools/hostsim/build/
+tools/hostsim/build*/
 tools/hostsim/out/
 tools/pi4scaler/build/
 tools/pi4scaler/out/

@@ -1,6 +1,6 @@
 # Build Instructions
 
-BMAtariST builds on Linux (Debian, Ubuntu, WSL) and macOS.
+BMMacintosh builds on Linux (Debian, Ubuntu, WSL) and macOS.
 
 ## Prerequisites
 
@@ -25,17 +25,17 @@ uses `wget`; without them, `make_all.sh` and `make_wifi_firmware.sh` use
 stand-ins (the manuals aren't needed, and `curl` does the download).
 
 The Arm GNU Toolchain 15.2.rel1 is downloaded into
-`~/.cache/bmatarist/toolchains` the first time a build needs it
+`~/.cache/bmmac/toolchains` the first time a build needs it
 (`get_gnu_toolchain.sh`), built for your computer (Linux or macOS):
 `arm-none-eabi` for the 32-bit Pi Zero, 2 and 3 kernels, `aarch64-none-elf`
 for the 64-bit Pi 4 and 5 kernels. If it can't be downloaded,
-`BMATARIST_ALLOW_ANY_TOOLCHAIN=1` lets the build use whatever
+`BMMAC_ALLOW_ANY_TOOLCHAIN=1` lets the build use whatever
 `arm-none-eabi-gcc` (or `aarch64-none-elf-gcc`) is on the PATH.
 
 ## Downloading the files
 
 ```
-git clone --recursive https://github.com/jhonnaker1/bmatarist.git
+git clone --recursive https://github.com/jhonnaker1/bmmacintosh.git
 ```
 
 or, in an existing clone, `git submodule update --init --recursive`.
@@ -83,7 +83,7 @@ rebooted from there, without touching the SD card.
    `clean_all.sh` or a change to the patches or circle-stdlib. To change
    board, run `clean_all.sh` first (make_all.sh refuses otherwise).
 3. `source get_gnu_toolchain.sh && make` rebuilds just the kernel (for the
-   Pi 4 and 5: `BMATARIST_AARCH=64 source get_gnu_toolchain.sh && make`).
+   Pi 4 and 5: `BMMAC_AARCH=64 source get_gnu_toolchain.sh && make`).
 4. `./make_wifi_firmware.sh DIR` puts the Wi-Fi firmware in `DIR/firmware`
    (`build_sdcard.sh` does this).
 
@@ -117,7 +117,7 @@ tools/hostsim/live.sh
 and open http://127.0.0.1:8064/ in a browser: the screen, keyboard, mouse,
 sound and gamepads (through the browser's Gamepad API) are in the page. The
 simulator's SD card is `tools/hostsim/out/live`, set up as the Pi's. This
-runs BMAtariST's port and Hatari on the PC, not the Pi kernel (no emulator
+runs BMMacintosh's port and Hatari on the PC, not the Pi kernel (no emulator
 shows the Pi's VideoCore display). The web page is served on 127.0.0.1
 only.
 

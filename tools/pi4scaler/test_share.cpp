@@ -9,7 +9,7 @@
 // between frames, as SetView() can). Built with ThreadSanitizer, which
 // reports any data race.
 //
-// This file is part of BMAtariST, a bare metal Atari ST emulator for
+// This file is part of BMMacintosh, a bare metal 68k Macintosh emulator for
 // the Raspberry Pi. See LICENSE for licensing details.
 //
 

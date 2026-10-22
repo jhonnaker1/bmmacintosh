@@ -1,6 +1,6 @@
-# BMAtariST
+# BMMacintosh
 
-BMAtariST is a bare metal Atari ST, STE, TT and Falcon emulator for the
+BMMacintosh is a bare metal Atari ST, STE, TT and Falcon emulator for the
 Raspberry Pi. It runs the [Hatari](https://www.hatari-emu.org/) emulator
 directly on the hardware, with no Linux underneath, the same way
 [BMC64](https://github.com/randyrossi/bmc64) does for the Commodore 64,
@@ -8,13 +8,13 @@ directly on the hardware, with no Linux underneath, the same way
 [BMCoco](https://github.com/jhonnaker1/bmcoco) for the Tandy Color Computer
 and [BMApple2](https://github.com/jhonnaker1/bmapple2) for the Apple II.
 
-BMAtariST is based on BMApple2, which is based on BMCoco, which is based on
+BMMacintosh is based on BMApple2, which is based on BMCoco, which is based on
 [BMA800XL](https://github.com/aminch/bma800xl) by Adam Minchinton, which is
 based on [BMC64](https://github.com/randyrossi/bmc64) by Randy Rossi. The
 emulator is replaced by Hatari; the kernel, display, sound, network and web
 UI come from those projects.
 
-BMAtariST wouldn't be possible without the work behind the open source
+BMMacintosh wouldn't be possible without the work behind the open source
 projects it builds on. Thanks to their authors and contributors for making
 it available; see the [third-party](docs/THIRD_PARTY.md) acknowledgements.
 
@@ -79,7 +79,7 @@ speed, as a percentage of the real machine's). The Pi Zero and Zero W
 
 | Key                      | Does                                              |
 |--------------------------|---------------------------------------------------|
-| F12                      | BMAtariST's menu                                  |
+| F12                      | BMMacintosh's menu                                  |
 | F1 to F10                | The ST's F1 to F10                                |
 | F11 (or Print Screen)    | Help                                              |
 | End (or Scroll Lock)     | Undo                                              |
@@ -106,7 +106,7 @@ builds everything (the kernels for all the boards; `./build_sdcard.sh pi4`
 builds one) and stages the SD card files in `build/sdcard/`. It works on
 Linux and macOS. See [docs/BUILDING.md](docs/BUILDING.md).
 
-BMAtariST can also run on a PC, in a simulator, for testing and debugging
+BMMacintosh can also run on a PC, in a simulator, for testing and debugging
 (with gdb, lldb or strace), and live in a web page: see
 [docs/SIMULATOR.md](docs/SIMULATOR.md).
 
@@ -135,12 +135,12 @@ src/av/, src/v3d/, src/kms Shared Pi 4/5 video, GPU and display drivers
 tools/hostsim              Runs the emulator port on a PC for testing
 ```
 
-Hatari is used unmodified: everything specific to BMAtariST is in `src/`.
+Hatari is used unmodified: everything specific to BMMacintosh is in `src/`.
 Hatari's CPU core is generated when it is built, as in Hatari's own build.
 
 ## Licence
 
-BMAtariST is free software under the GNU General Public License version 3;
+BMMacintosh is free software under the GNU General Public License version 3;
 see [LICENSE](LICENSE). It includes software from other projects under
 their own licences (Hatari and EmuTOS under the GPL version 2 or later and
 version 2, zlib under its own); see

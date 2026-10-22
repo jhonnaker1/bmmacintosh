@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# Runs BMAtariST in the host simulator in real time, shown in a web page:
+# Runs BMMacintosh in the host simulator in real time, shown in a web page:
 #
 #   tools/hostsim/live.sh [TOS_DIRECTORY] [PORT]
 #
@@ -27,8 +27,8 @@ fi
 
 cd "$CARD" || exit 1
 while true; do
-    BMATARIST_LIVE=$PORT BMATARIST_CMDLINE="root=$CARD ${BMATARIST_CMDLINE:-}" \
-        "$HERE/build/bmatarist_sim" < /dev/null
+    BMMAC_LIVE=$PORT BMMAC_CMDLINE="root=$CARD ${BMMAC_CMDLINE:-}" \
+        "$HERE/build/bmmac_sim" < /dev/null
     status=$?
     [ $status -ne 0 ] && exit $status
     echo "[live] restarting"

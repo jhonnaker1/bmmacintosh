@@ -3,7 +3,8 @@
 //
 // Modified for BMA800XL: protects the Atari emulator's configuration
 // files; BMC64's profile and keyboard map files are removed.
-// Changed for BMCoco and BMApple2, and for BMAtariST: the Atari ST's files.
+// Changed for BMCoco, BMApple2 and BMAtariST, and for BMMacintosh: the
+// Mac's files.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -280,12 +281,13 @@ boolean IsConfigFile(const char *name) {
   return FALSE;
 }
 
-// hatari.cfg (Hatari's settings and disks) and bmatarist.cfg (the BMAtariST
-// menu's settings) are editable too, but (unlike the files above) stay
-// uploadable so a prepared copy can still be dropped on the card.
+// macii.prefs (Basilisk II's settings and disks) and bmmac.cfg (the
+// BMMacintosh menu's settings, and the Mac Plus's) are editable too, but
+// (unlike the files above) stay uploadable so a prepared copy can still be
+// dropped on the card.
 boolean IsEditableName(const char *name) {
-  return IsConfigFile(name) || CiEqual(name, "hatari.cfg") ||
-         CiEqual(name, "bmatarist.cfg");
+  return IsConfigFile(name) || CiEqual(name, "macii.prefs") ||
+         CiEqual(name, "bmmac.cfg");
 }
 
 // The config files are editable only in the volume root.

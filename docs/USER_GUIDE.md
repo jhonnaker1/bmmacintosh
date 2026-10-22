@@ -1,6 +1,6 @@
-# BMAtariST User Guide
+# BMMacintosh User Guide
 
-BMAtariST turns a Raspberry Pi into an Atari ST, STE, Mega ST or Mega STE,
+BMMacintosh turns a Raspberry Pi into an Atari ST, STE, Mega ST or Mega STE,
 or (on a Pi 4 or 5) a TT or Falcon. It runs the Hatari emulator on the bare
 hardware, so it starts in a couple of seconds and can be switched off at any
 time.
@@ -9,11 +9,11 @@ time.
 
 | File or folder   | What it is                                                  |
 |------------------|-------------------------------------------------------------|
-| `kernel8-rpi4.img`, `kernel_2712.img`, `kernel8-32.img`, `kernel7.img`, `kernel.img` | BMAtariST for the Pi 4 and Pi 400, the Pi 5, 500 and 500+, the Pi 3 and Zero 2 W, the Pi 2, and the Pi Zero and Zero W |
+| `kernel8-rpi4.img`, `kernel_2712.img`, `kernel8-32.img`, `kernel7.img`, `kernel.img` | BMMacintosh for the Pi 4 and Pi 400, the Pi 5, 500 and 500+, the Pi 3 and Zero 2 W, the Pi 2, and the Pi Zero and Zero W |
 | `bootcode.bin`, `start.elf`, `fixup.dat`, `start4.elf`, `fixup4.dat`, `armstub8-rpi4.bin`, `*.dtb`, `overlays/` | Raspberry Pi firmware |
 | `config.txt`     | Raspberry Pi firmware settings: the display mode            |
-| `cmdline.txt`    | BMAtariST's options (see Options)                           |
-| `bmatarist.cfg`  | Settings changed in BMAtariST's menu (written by BMAtariST) |
+| `cmdline.txt`    | BMMacintosh's options (see Options)                           |
+| `bmmac.cfg`  | Settings changed in BMMacintosh's menu (written by BMMacintosh) |
 | `hatari.cfg`     | Hatari's settings: the machine, TOS, memory, the disks in the drives, joysticks (written by Hatari when the menu changes them) |
 | `hatari.nvram`   | The TT's and Falcon's NVRAM (written by Hatari)              |
 | `tos/`           | TOS images: EmuTOS, and your own (see TOS)                  |
@@ -23,7 +23,7 @@ time.
 | `firmware/`      | Wi-Fi firmware                                              |
 
 A floppy the ST has written to is written back to its image on the card two
-seconds after it stops writing, and BMAtariST pushes everything out to the
+seconds after it stops writing, and BMMacintosh pushes everything out to the
 card every second, so the Pi can be switched off at any time (give it a few
 seconds after saving).
 
@@ -31,7 +31,7 @@ seconds after saving).
 
 The ST's operating system is in the card's `tos` folder. EmuTOS
 (`etos1024k.img`), the free TOS, is there from the start and runs on every
-machine: BMAtariST starts with it. Atari's own TOS images are copyrighted
+machine: BMMacintosh starts with it. Atari's own TOS images are copyrighted
 and not included: copy yours into `tos` (any `.img`, `.rom` or `.tos` file
 of a TOS's size) and choose one in the menu: *Machine*, *TOS*. See
 [TOS.txt](TOS.txt) for which TOS suits which machine.
@@ -80,7 +80,7 @@ Changing a hard disk restarts the ST.
 *Save State* keeps the whole machine (its memory, chips and CPU, and the
 disks in its drives) in one of four slots, in the card's `snapshots`
 folder; *Load State* brings it back exactly as it was. A state is for the
-same BMAtariST version and machine.
+same BMMacintosh version and machine.
 
 ## The menu
 
@@ -108,8 +108,8 @@ or program.
 
 The ST's settings (machine, TOS, disks, joysticks) are Hatari's, kept in
 `hatari.cfg`; a change that needs it restarts the ST, as in Hatari's own
-settings dialog. BMAtariST's own (video, sound, network) are kept in
-`bmatarist.cfg`.
+settings dialog. BMMacintosh's own (video, sound, network) are kept in
+`bmmac.cfg`.
 
 ## Keyboard and mouse
 
@@ -130,7 +130,7 @@ The ST's keys a PC keyboard doesn't have:
 | Alt (either)             | Alternate       |
 | The key left of Z (ISO keyboards) | The ST's < > key |
 
-F12 is BMAtariST's menu. The power key (a Pi 400's Fn+F10) shuts down.
+F12 is BMMacintosh's menu. The power key (a Pi 400's Fn+F10) shuts down.
 
 A USB mouse is the ST's mouse (in its mouse port, unless a joystick is set
 there): the left and right buttons are the ST's, and the middle button
@@ -176,11 +176,11 @@ gamepad 1 is in the joystick port and the mouse in the mouse port.
 | L, R               | Autofire                            |
 | X                  | Space                               |
 | Y                  | Return                              |
-| Home, Select+Start | BMAtariST's menu                    |
+| Home, Select+Start | BMMacintosh's menu                    |
 
 **Joysticks on the GPIO header**: set `gpio_joysticks=1` in `cmdline.txt`,
 then reboot. The wiring is BMC64's "GPIO Config 1". The pins are active low
-(each switch connects the pin to ground) and BMAtariST turns on the Pi's
+(each switch connects the pin to ground) and BMMacintosh turns on the Pi's
 pull-ups:
 
 | Signal | Joystick 1 (GPIO) | Joystick 2 (GPIO) |
@@ -208,7 +208,7 @@ refresh rate is within 2% of the ST's, each frame is shown on exactly one
 display refresh, which gives perfectly smooth scrolling. Otherwise the
 emulation keeps exact time and frames are shown as they come. `config.txt`
 sets the display to 720p at 60 Hz; for a PAL ST choose `hdmi_mode=19` (50
-Hz). On a Pi 4 or 5 BMAtariST sets the display to the ST's exact rate
+Hz). On a Pi 4 or 5 BMMacintosh sets the display to the ST's exact rate
 itself, whichever it is (see [PI4.md](PI4.md)). `vsync=on` or `vsync=off` in
 `cmdline.txt` (or *Frame Lock* in the menu) forces one or the other.
 
@@ -219,7 +219,7 @@ and the TT's and Falcon's modes are shown as they are.
 
 ## Networking and the web UI
 
-BMAtariST can join your network over Ethernet or Wi-Fi and serve a web page
+BMMacintosh can join your network over Ethernet or Wi-Fi and serve a web page
 for managing the SD card from any browser on the same network, so files can
 be copied to and from the Pi without taking the card out. It is the web UI
 from BMC64.
@@ -250,20 +250,20 @@ The web UI has:
 
 - **Dashboard**: the Pi's model, address, uptime, temperature, power and
   throttling warnings and free space on the card. Buttons to **Restart**
-  the ST (as switching it off and on), **Reboot** BMAtariST, **Shut
+  the ST (as switching it off and on), **Reboot** BMMacintosh, **Shut
   Down** (the Pi halts; switch it off, then on again to restart; a Pi 400
   switches itself off, and its power key starts it again), and **Disable
   Web UI** until the next reboot.
 - **Files**: browse the SD card; upload (or drag and drop) files into a
   folder, download, rename, delete, and create folders. Clicking a floppy
   image **starts it**: it goes in drive A: and the ST starts again. `cmdline.txt`, `config.txt`,
-  `bmatarist.cfg`, `hatari.cfg` and `wpa_supplicant.conf` can be **edited**
+  `bmmac.cfg`, `hatari.cfg` and `wpa_supplicant.conf` can be **edited**
   in the browser; changes take effect after a reboot, and the previous
   version is kept as `.bak`.
 
 Uploads can't overwrite `cmdline.txt`, `config.txt` or `wpa_supplicant.conf`
 (edit them instead), or anything in `firmware`. Everything else, including
-the kernels, can be replaced, so a new build of BMAtariST can be uploaded and
+the kernels, can be replaced, so a new build of BMMacintosh can be uploaded and
 started with **Reboot**. A mistake in `cmdline.txt` or `config.txt` can stop
 the Pi starting, and then needs the card in a computer (the `.bak` copy
 makes that easy).
@@ -279,7 +279,7 @@ example `timezone=600` for UTC+10. (Hatari gives the ST the Pi's date and time w
 ## Options
 
 `cmdline.txt` is a single line of `name=value` options separated by spaces.
-BMAtariST's menu saves the options it changes to `bmatarist.cfg`, one
+BMMacintosh's menu saves the options it changes to `bmmac.cfg`, one
 `name=value` per line, and those win over `cmdline.txt`. Either file can be
 edited from the web UI. Everything about the emulated machine is in
 Hatari's settings, `hatari.cfg`, which the menu changes.
@@ -310,7 +310,7 @@ Hatari's settings, `hatari.cfg`, which the menu changes.
 
 ## Logging
 
-BMAtariST logs what it is doing, which helps when something doesn't work:
+BMMacintosh logs what it is doing, which helps when something doesn't work:
 the version, the display and sound set up, the TOS images found, devices
 coming and going, network status, and Hatari's own messages (the TOS
 loaded, disks inserted and written back, anything it didn't like). Choose
@@ -319,7 +319,7 @@ where it goes with `enable_logging` in `cmdline.txt`:
 - **Off** (the default, also when `enable_logging` isn't set): no log.
 - **UART**: the serial port, GPIO14 TX and GPIO15 RX at 115200 baud
   (all boards, the Pi 5 too). Needs a USB serial adapter.
-- **File**: the serial port, and `bmatarist.log` in the root of the SD
+- **File**: the serial port, and `bmmac.log` in the root of the SD
   card. The file starts with what was logged since boot, is written to the
   card every few seconds (and is complete after a crash, a hang or
   switching off), and starts again at boot once it is over 1 MB. Download
@@ -331,7 +331,7 @@ where it goes with `enable_logging` in `cmdline.txt`:
 
 **"Hatari did not start" or "Failed to load TOS image"**: the TOS chosen
 isn't there or doesn't suit the machine. Delete `hatari.cfg` (from the web
-UI, or with the card in a computer) and BMAtariST starts with EmuTOS again,
+UI, or with the card in a computer) and BMMacintosh starts with EmuTOS again,
 or choose another TOS in the menu.
 
 **A TOS doesn't start on a machine**: TOS 1.0x is for the ST, 1.06 and 1.62

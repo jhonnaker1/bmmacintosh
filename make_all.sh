@@ -1,17 +1,20 @@
 #!/bin/bash
 #
 # Builds the third party libraries (circle-stdlib: Circle and newlib, and the
-# Circle addons) and then the BMAtariST kernel for one board:
+# Circle addons) and then the BMMacintosh kernels for one board:
 #
 #   ./make_all.sh [pi0|pi2|pi3|pi4|pi5] [--skip-patches]
 #
-#   pi3 (default)  kernel8-32.img: Pi 3 and Pi Zero 2 W
-#   pi2            kernel7.img: Pi 2
-#   pi0            kernel.img: Pi Zero and Zero W (one core)
-#   pi4            kernel8-rpi4.img: Pi 4 B and Pi 400, 64-bit, with
-#                  armstub8-rpi4.bin (see docs/PI4.md)
-#   pi5            kernel_2712.img: Pi 5, Pi 500 and Pi 500+, 64-bit (see
-#                  docs/PI5.md)
+#   pi3 (default)  macplus8-32.img: Pi 3 and Pi Zero 2 W
+#   pi2            macplus7.img: Pi 2
+#   pi0            macplus.img: Pi Zero and Zero W (one core)
+#   pi4            macplus8-rpi4.img and macii8-rpi4.img: Pi 4 B and Pi 400,
+#                  64-bit, with armstub8-rpi4.bin (see docs/PI4.md)
+#   pi5            macplus_2712.img and macii_2712.img: Pi 5, Pi 500 and
+#                  Pi 500+, 64-bit (see docs/PI5.md)
+#
+# The macplus kernels are the Mac Plus (umac), the macii ones the Mac II
+# and Quadra (Basilisk II), which need a Pi 4 or 5.
 #
 # --skip-patches leaves Circle as it is instead of resetting it and applying
 # src/patches/ again.
@@ -47,28 +50,28 @@ fi
 # kernel8-rpi4.img and kernel_2712.img (TARGET in Circle's Rules.mk for
 # RASPPI=4 and 5, AARCH=64).
 case "$RASPI" in
-    1) KERNEL=kernel.img ;;
-    2) KERNEL=kernel7.img ;;
-    3) KERNEL=kernel8-32.img ;;
-    4) KERNEL=kernel8-rpi4.img ;;
-    5) KERNEL=kernel_2712.img ;;
+    1) KERNELS="macplus.img" ;;
+    2) KERNELS="macplus7.img" ;;
+    3) KERNELS="macplus8-32.img" ;;
+    4) KERNELS="macplus8-rpi4.img macii8-rpi4.img" ;;
+    5) KERNELS="macplus_2712.img macii_2712.img" ;;
 esac
 if [ "$RASPI" -ge 4 ]
 then
-    export BMATARIST_AARCH=64
+    export BMMAC_AARCH=64
     CONFIGURE_PREFIX=(-p aarch64-none-elf-)
 else
-    export BMATARIST_AARCH=32
+    export BMMAC_AARCH=32
     CONFIGURE_PREFIX=()
 fi
 
 if [ ! -f "$SRC_DIR/sdcard/config.txt" ]
 then
-    echo "Must be run from the BMAtariST root directory." >&2
+    echo "Must be run from the BMMacintosh root directory." >&2
     exit 1
 fi
 
-# newlib only uses makeinfo for its manuals, which BMAtariST doesn't need.
+# newlib only uses makeinfo for its manuals, which BMMacintosh doesn't need.
 # Without it, a stand-in writes empty ones.
 if ! command -v makeinfo >/dev/null 2>&1
 then
@@ -131,10 +134,13 @@ then
     nproc() { sysctl -n hw.ncpu; }
 fi
 
-if [ ! -f "$CIRCLE_HOME/Rules.mk" ] || [ ! -f "$SRC_DIR/third_party/hatari/src/main.c" ]
+if [ ! -f "$CIRCLE_HOME/Rules.mk" ] || [ ! -f "$SRC_DIR/third_party/macemu/BasiliskII/src/main.cpp" ] \
+   || [ ! -f "$SRC_DIR/third_party/umac/external/Musashi/m68kcpu.c" ]
 then
     echo "Fetching submodules..."
-    git -C "$SRC_DIR" submodule update --init third_party/hatari third_party/zlib third_party/circle-stdlib
+    git -C "$SRC_DIR" submodule update --init third_party/macemu third_party/umac \
+        third_party/zlib third_party/circle-stdlib
+    git -C "$SRC_DIR/third_party/umac" submodule update --init external/Musashi
     git -C "$CIRCLE_STDLIB" submodule update --init libs/circle libs/circle-newlib
     git -C "$CIRCLE_HOME" submodule update --init addon/wlan/hostap
 fi
@@ -201,10 +207,10 @@ then
 fi
 
 echo "=============================================================="
-echo "BUILD KERNEL"
+echo "BUILD KERNELS"
 echo "=============================================================="
 cd "$SRC_DIR"
 make clean >/dev/null
 make -j"$(nproc)"
 echo
-echo "Built $KERNEL for $BOARD"
+echo "Built $KERNELS for $BOARD"

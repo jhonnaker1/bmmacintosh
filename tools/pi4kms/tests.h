@@ -3,12 +3,12 @@
 //
 // Shared by the direct display driver's PC tests (see test.cpp).
 //
-// This file is part of BMAtariST, a bare metal Atari ST emulator for
+// This file is part of BMMacintosh, a bare metal 68k Macintosh emulator for
 // the Raspberry Pi. See LICENSE for licensing details.
 //
 
-#ifndef BMATARIST_TOOLS_PI4KMS_TESTS_H_
-#define BMATARIST_TOOLS_PI4KMS_TESTS_H_
+#ifndef BMMAC_TOOLS_PI4KMS_TESTS_H_
+#define BMMAC_TOOLS_PI4KMS_TESTS_H_
 
 extern int g_failed;
 void Check(bool ok, const char *name, const char *what);

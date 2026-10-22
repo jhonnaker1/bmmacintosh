@@ -1,4 +1,4 @@
-BMAtariST - bare metal Atari ST, STE, TT and Falcon emulator for the Raspberry Pi
+BMMacintosh - bare metal Atari ST, STE, TT and Falcon emulator for the Raspberry Pi
 =================================================================================
 
 Copy everything here to the root of a FAT32 SD card and boot a Raspberry
@@ -18,7 +18,7 @@ the card. Or start one from the web UI.
 Hard disk: F12, Hard Disks, Folder as a Drive, and choose a folder on the
 card (the hd folder is there for it): it's the ST's drive C:.
 
-  F12               BMAtariST's menu      F11 (Print Screen)   Help
+  F12               BMMacintosh's menu      F11 (Print Screen)   Help
   End (Scroll Lock) Undo                  Home                 ClrHome
   Alt               Alternate             Page Up, Page Down   Keypad ( )
 
@@ -34,10 +34,10 @@ floppy images.
 
 No need to shut down: just switch it off.
 
-Licences: BMAtariST is under the GPL version 3 (LICENSE.txt); the licenses
+Licences: BMMacintosh is under the GPL version 3 (LICENSE.txt); the licenses
 folder has the notices for other projects' code it includes (Hatari,
 EmuTOS, zlib and the rest), and the firmware folder the Raspberry Pi and
 Wi-Fi firmware's licences.
 
-Options are in cmdline.txt; see docs/USER_GUIDE.md in BMAtariST's source
-for all of them: https://github.com/jhonnaker1/bmatarist
+Options are in cmdline.txt; see docs/USER_GUIDE.md in BMMacintosh's source
+for all of them: https://github.com/jhonnaker1/bmmacintosh

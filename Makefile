@@ -1,10 +1,17 @@
 #
-# Makefile for the BMAtariST kernel image.
+# Makefile for the BMMacintosh kernel images.
+#
+# BMMacintosh is two kernels for each board, one for each Mac: EMU=ii is
+# the Mac II and Quadra (Basilisk II, the Pi 4 and 5), EMU=plus the Mac
+# Plus (umac, every Pi). Their names are Circle's for the board with
+# "kernel" made "macii" or "macplus": macplus.img (Pi Zero), macplus7.img
+# (Pi 2), macplus8-32.img (Pi 3), macplus8-rpi4.img and macii8-rpi4.img
+# (Pi 4, 64-bit), macplus_2712.img and macii_2712.img (Pi 5, 64-bit). The
+# menu switches between them (src/port/machine.c).
 #
 # Run ./make_all.sh once first; it builds circle-stdlib and then this.
-# After that "make" rebuilds the kernel image for the board circle-stdlib is
-# built for: kernel7.img (Pi 2), kernel8-32.img (Pi 3), kernel8-rpi4.img
-# (Pi 4, 64-bit) or kernel_2712.img (Pi 5, 64-bit).
+# After that "make" rebuilds the kernels for the board circle-stdlib is
+# built for, "make EMU=plus" or "make EMU=ii" one of them.
 # ./build_sdcard.sh stages everything for the SD card in build/sdcard.
 #
 
@@ -20,33 +27,82 @@ include third_party/circle-stdlib/Config.mk
 # pick the board's display and sound code.
 include $(CIRCLEHOME)/Config.mk
 
-BMATARIST_VERSION ?= $(shell tools/version.sh --semver)
-BMATARIST_GIT ?= $(shell tools/version.sh --git)
-HATARI := third_party/hatari/src
-ZLIB := third_party/zlib
-# "v2.6.1-579-g90949cfa": the release the submodule is after, and its commit.
-HATARI_VERSION := $(shell git -C third_party/hatari describe --tags 2>/dev/null || echo unknown)
+# The kernels this board has.
+ifneq ($(filter 4 5,$(RASPPI)),)
+EMUS := plus ii
+else
+EMUS := plus
+endif
 
-include src/port/hatari.mk
+ifeq ($(EMU),)
+
+# Both kernels, one after the other (they share the objects outside
+# src/port/ii and src/port/plus).
+all:
+	@for emu in $(EMUS); do $(MAKE) --no-print-directory EMU=$$emu || exit 1; done
+
+clean:
+	@for emu in $(EMUS); do $(MAKE) --no-print-directory EMU=$$emu clean || exit 1; done
+
+distclean: clean
+	rm -rf build
+
+.PHONY: all clean distclean
+
+else
+
+ifeq ($(filter $(EMU),$(EMUS)),)
+$(error EMU=$(EMU): this board's kernels are $(EMUS))
+endif
+
+# The kernel's name: Circle's for the board (Rules.mk), "kernel" made
+# "macii" or "macplus".
+ifeq ($(RASPPI),1)
+TARGET := mac$(EMU)
+else ifeq ($(RASPPI),2)
+TARGET := mac$(EMU)7
+else ifeq ($(RASPPI),3)
+TARGET := mac$(EMU)8-32
+else ifeq ($(RASPPI),4)
+TARGET := mac$(EMU)8-rpi4
+else
+TARGET := mac$(EMU)_2712
+endif
+
+BMMAC_VERSION ?= $(shell tools/version.sh --semver)
+BMMAC_GIT ?= $(shell tools/version.sh --git)
+ZLIB := third_party/zlib
 
 BUILD := build
 GEN := $(BUILD)/gen
-HATARI_OBJS := $(addprefix $(BUILD)/hatari/,$(HATARI_CORE_SRCS:.c=.o)) \
-               $(addprefix $(BUILD)/hatari/cpu/,$(HATARI_CPU_SRCS:.c=.o)) \
-               $(addprefix $(GEN)/,$(HATARI_CPUGEN_SRCS:.c=.o) $(HATARI_CPUDEFS_SRC:.c=.o)) \
-               $(addprefix $(BUILD)/hatari/falcon/,$(HATARI_FALCON_SRCS:.c=.o)) \
-               $(addprefix $(BUILD)/hatari/debug/,$(HATARI_DEBUG_SRCS:.c=.o)) \
-               $(addprefix $(BUILD)/zlib/,$(ZLIB_SRCS:.c=.o))
-HATARI_LIB := $(BUILD)/libhatari.a
 
 OBJS = src/main.o src/kernel.o src/logging.o src/options.o \
-       src/port/platform.o src/port/menu.o src/port/osd.o src/port/posix_extra.o \
-       src/port/fswrap.o \
-       $(addprefix src/port/,$(HATARI_PORT_SRCS:.c=.o)) \
+       src/port/frontend.o src/port/keymap.o src/port/menu.o src/port/machine.o \
+       src/port/osd.o src/port/roms.o src/port/posix_extra.o src/port/fswrap.o \
        src/network.o src/network_time_sync.o \
        src/webui/webui.o src/webui/webui_http.o src/webui/webui_fs.o \
        src/webui/webui_machine.o src/webui/webui_assets.o \
        src/sdcard/sd_fs_fatfs.o src/sdcard/sd_fs_file.o
+
+# zlib's inflate, for MAME's zipped ROM sets (src/port/roms.c).
+ZLIB_SRCS = adler32.c crc32.c inffast.c inflate.c inftrees.c zutil.c
+ZLIB_CFLAGS = -DHAVE_UNISTD_H -DHAVE_STDARG_H -w
+ZLIB_OBJS := $(addprefix $(BUILD)/zlib/,$(ZLIB_SRCS:.c=.o))
+
+ifeq ($(EMU),ii)
+include src/port/ii/basilisk.mk
+EMU_OBJS := $(addprefix $(BUILD)/b2/,$(B2_CORE_SRCS:.cpp=.o)) \
+            $(addprefix $(GEN)/b2/,$(B2_GEN_SRCS:.cpp=.o)) \
+            $(foreach n,$(B2_CPUEMU_PARTS),$(GEN)/b2/cpuemu$(n).o)
+OBJS += $(addprefix src/port/ii/,$(B2_PORT_SRCS:.cpp=.o))
+else
+include src/port/plus/umac.mk
+EMU_OBJS := $(addprefix $(BUILD)/umac/,$(UMAC_CORE_SRCS:.c=.o)) \
+            $(addprefix $(BUILD)/musashi/,$(MUSASHI_SRCS:.c=.o)) \
+            $(addprefix $(GEN)/umac/,$(UMAC_GEN_SRCS:.c=.o))
+OBJS += $(addprefix src/port/plus/,$(UMAC_PORT_SRCS:.c=.o))
+endif
+EMU_LIB := $(BUILD)/lib$(EMU).a
 
 # Display and sound. The Pi 2 and 3 use the VideoCore through VCHIQ
 # (dispmanx, from BMC64); the Pi 4 and 5 use Circle's framebuffer and HDMI
@@ -80,69 +136,116 @@ INCLUDE := $(CIRCLE_STDLIB_INCLUDES) $(INCLUDE) -I $(CIRCLEHOME)/addon/fatfs
 # See src/port/fswrap.c
 LDFLAGS += --wrap=stat
 
-VERSION_DEFINES = -DBMATARIST_VERSION=\"$(BMATARIST_VERSION)\" \
-                  -DBMATARIST_GIT=\"$(BMATARIST_GIT)\" -DHATARI_GIT=\"$(HATARI_VERSION)\"
+VERSION_DEFINES = -DBMMAC_VERSION=\"$(BMMAC_VERSION)\" -DBMMAC_GIT=\"$(BMMAC_GIT)\" \
+                  -DBMMAC_RASPPI=$(RASPPI)
 CFLAGS += $(VERSION_DEFINES)
 CPPFLAGS += $(VERSION_DEFINES)
 
-HATARI_INCLUDES = -I src/port -I $(HATARI)/includes -I $(HATARI)/debug -I $(HATARI)/falcon \
-                  -I $(HATARI)/cpu -I $(HATARI)/cpu/softfloat -I $(HATARI) -I $(GEN) -I $(ZLIB)
-
-# The port's C files include Hatari's headers.
-src/port/%.o src/port/%.d: CFLAGS += $(HATARI_INCLUDES) -std=gnu11 \
-	-include src/port/compat/hatari_prefix.h
-$(addprefix src/port/,$(HATARI_PORT_SRCS:.c=.o) platform.o menu.o): $(GEN)/cputbl.h
-
-# Hatari itself (and zlib): compiled into build/ so the submodules stay
-# clean.
-HATARI_FLAGS = $(HATARI_CFLAGS) $(HATARI_INCLUDES) -include src/port/compat/hatari_prefix.h
-
-# The CPU core's generated sources, as Hatari's build makes them for a
-# cross compile (src/cpu/CMakeLists.txt): build68k and gencpu are built for
-# this computer, with its compiler.
-HOSTCC ?= cc
-
-$(GEN)/build68k: $(HATARI)/cpu/build68k.c $(HATARI)/cpu/writelog.c
-	@mkdir -p $(GEN)
-	@echo "  HOSTCC $@"
-	@$(HOSTCC) -I $(HATARI)/cpu -I $(HATARI)/includes -I src/port -o $@ $^
-
-$(GEN)/cpudefs.c: $(GEN)/build68k $(HATARI)/cpu/table68k
-	@echo "  GEN   $@"
-	@$(GEN)/build68k < $(HATARI)/cpu/table68k > $@
-
-$(GEN)/gencpu: $(GEN)/cpudefs.c $(HATARI)/cpu/gencpu.c $(HATARI)/cpu/readcpu.c
-	@echo "  HOSTCC $@"
-	@$(HOSTCC) -I $(HATARI)/cpu -I $(HATARI)/includes -I src/port -o $@ $^
-
-$(GEN)/cpustbl.c: $(GEN)/gencpu
-	@echo "  GEN   $(GEN)/cpuemu_*.c"
-	@cd $(GEN) && ./gencpu > /dev/null
-
-$(addprefix $(GEN)/,$(filter-out cpustbl.c,$(HATARI_CPUGEN_SRCS))) $(GEN)/cputbl.h: $(GEN)/cpustbl.c
-
-# A static pattern rule: Circle's own %.o: %.c (Rules.mk) would otherwise be
-# used for these, which are .c files next to their .o (make 3.81, macOS's,
-# takes the first rule that matches).
-HATARI_GEN_OBJS := $(addprefix $(GEN)/,$(HATARI_CPUGEN_SRCS:.c=.o) $(HATARI_CPUDEFS_SRC:.c=.o))
-$(HATARI_GEN_OBJS): $(GEN)/%.o: $(GEN)/%.c
-	@echo "  CC    $<"
-	@$(CC) $(CFLAGS) $(HATARI_FLAGS) -c -o $@ $<
-
-$(BUILD)/hatari/%.o: $(HATARI)/%.c $(GEN)/cputbl.h
-	@mkdir -p $(dir $@)
-	@echo "  CC    $<"
-	@$(CC) $(CFLAGS) $(HATARI_FLAGS) -c -o $@ $<
+src/port/roms.o src/port/roms.d: CFLAGS += -I $(ZLIB)
 
 $(BUILD)/zlib/%.o: $(ZLIB)/%.c
 	@mkdir -p $(dir $@)
 	@echo "  CC    $<"
-	@$(CC) $(CFLAGS) $(ZLIB_CFLAGS) -c -o $@ $<
+	@$(CC) $(CFLAGS) $(C_STANDARD) $(ZLIB_CFLAGS) -c -o $@ $<
 
-$(HATARI_LIB): $(HATARI_OBJS)
+ifeq ($(EMU),ii)
+
+# Basilisk II, compiled into build/ so the submodule stays clean.
+B2_FLAGS = $(CPPFLAGS) $(B2_CXXFLAGS) $(B2_INCLUDES) -I $(GEN)/b2
+src/port/ii/%.o src/port/ii/%.d: CPPFLAGS += $(B2_CXXFLAGS) $(B2_INCLUDES) -I $(GEN)/b2
+$(addprefix src/port/ii/,$(B2_PORT_SRCS:.cpp=.o)): $(GEN)/b2/cputbl.h
+
+# The CPU core's generated sources, as Basilisk II's build makes them
+# (Unix/Makefile.in): build68k and gencpu are built for this computer,
+# with its compiler.
+HOSTCC ?= cc
+HOSTCXX ?= c++
+
+$(GEN)/b2/build68k: $(B2)/$(B2_UAE)/build68k.c
+	@mkdir -p $(GEN)/b2
+	@echo "  HOSTCC $@"
+	@$(HOSTCC) $(B2_INCLUDES) -o $@ $<
+
+$(GEN)/b2/cpudefs.cpp: $(GEN)/b2/build68k $(B2)/$(B2_UAE)/table68k
+	@echo "  GEN   $@"
+	@$(GEN)/b2/build68k < $(B2)/$(B2_UAE)/table68k > $@
+
+$(GEN)/b2/gencpu: $(GEN)/b2/cpudefs.cpp $(B2)/$(B2_UAE)/gencpu.c $(B2)/$(B2_UAE)/readcpu.cpp
+	@echo "  HOSTCXX $@"
+	@$(HOSTCXX) $(B2_DEFINES) $(B2_INCLUDES) -I $(GEN)/b2 -w -o $@ \
+	    -x c++ $(B2)/$(B2_UAE)/gencpu.c $(B2)/$(B2_UAE)/readcpu.cpp $(GEN)/b2/cpudefs.cpp
+
+# gencpu writes into the current folder.
+$(GEN)/b2/cpuemu.cpp: $(GEN)/b2/gencpu
+	@echo "  GEN   $(GEN)/b2/cpuemu.cpp"
+	@cd $(GEN)/b2 && ./gencpu
+
+$(GEN)/b2/cpustbl.cpp $(GEN)/b2/cpufunctbl.cpp $(GEN)/b2/cputbl.h: $(GEN)/b2/cpuemu.cpp
+
+# Static pattern rules: Circle's own %.o: %.cpp (Rules.mk) would otherwise
+# be used for these, which are .cpp files next to their .o (make 3.81,
+# macOS's, takes the first rule that matches).
+B2_CPUEMU_OBJS := $(foreach n,$(B2_CPUEMU_PARTS),$(GEN)/b2/cpuemu$(n).o)
+$(B2_CPUEMU_OBJS): $(GEN)/b2/cpuemu%.o: $(GEN)/b2/cpuemu.cpp src/port/ii/sysdeps.h
+	@echo "  CPP   $< (part $*)"
+	@$(CPP) $(B2_FLAGS) -DPART_$* -c -o $@ $<
+
+B2_GEN_OBJS := $(addprefix $(GEN)/b2/,$(B2_GEN_SRCS:.cpp=.o))
+$(B2_GEN_OBJS): $(GEN)/b2/%.o: $(GEN)/b2/%.cpp $(GEN)/b2/cputbl.h src/port/ii/sysdeps.h
+	@echo "  CPP   $<"
+	@$(CPP) $(B2_FLAGS) -c -o $@ $<
+
+$(BUILD)/b2/%.o: $(B2)/%.cpp $(GEN)/b2/cputbl.h src/port/ii/sysdeps.h
+	@mkdir -p $(dir $@)
+	@echo "  CPP   $<"
+	@$(CPP) $(B2_FLAGS) -c -o $@ $<
+
+else
+
+# umac and Musashi, compiled into build/ so the submodule stays clean.
+UMAC_FLAGS = $(CFLAGS) $(UMAC_CFLAGS) $(UMAC_INCLUDES) -I $(GEN)/umac
+src/port/plus/%.o src/port/plus/%.d: CFLAGS += $(UMAC_INCLUDES) -I $(GEN)/umac \
+	-include src/port/plus/umac_prefix.h
+$(addprefix src/port/plus/,$(UMAC_PORT_SRCS:.c=.o)): $(GEN)/umac/m68kops.h
+
+HOSTCC ?= cc
+
+# Musashi's opcode handlers, written by its m68kmake from m68k_in.c.
+$(GEN)/umac/m68kmake: $(MUSASHI)/m68kmake.c
+	@mkdir -p $(GEN)/umac
+	@echo "  HOSTCC $@"
+	@$(HOSTCC) -o $@ $<
+
+$(GEN)/umac/m68kops.h: $(GEN)/umac/m68kops.c
+
+# m68kmake writes m68kops.h with it.
+$(GEN)/umac/m68kops.c: $(GEN)/umac/m68kmake $(MUSASHI)/m68k_in.c
+	@echo "  GEN   $(GEN)/umac/m68kops.c"
+	@$(GEN)/umac/m68kmake $(GEN)/umac $(MUSASHI)/m68k_in.c > /dev/null
+
+UMAC_GEN_OBJS := $(addprefix $(GEN)/umac/,$(UMAC_GEN_SRCS:.c=.o))
+$(UMAC_GEN_OBJS): $(GEN)/umac/%.o: $(GEN)/umac/%.c
+	@echo "  CC    $<"
+	@$(CC) $(UMAC_FLAGS) -c -o $@ $<
+
+$(BUILD)/umac/main.o: UMAC_FLAGS += $(UMAC_MAIN_CFLAGS)
+
+$(BUILD)/umac/%.o: $(UMAC)/src/%.c $(GEN)/umac/m68kops.h
+	@mkdir -p $(dir $@)
+	@echo "  CC    $<"
+	@$(CC) $(UMAC_FLAGS) -c -o $@ $<
+
+$(BUILD)/musashi/%.o: $(MUSASHI)/%.c $(GEN)/umac/m68kops.h
+	@mkdir -p $(dir $@)
+	@echo "  CC    $<"
+	@$(CC) $(UMAC_FLAGS) -c -o $@ $<
+
+endif
+
+$(EMU_LIB): $(EMU_OBJS) $(ZLIB_OBJS)
 	@echo "  AR    $@"
 	@rm -f $@
-	@$(AR) cr $@ $(HATARI_OBJS)
+	@$(AR) cr $@ $(EMU_OBJS) $(ZLIB_OBJS)
 
 # The web UI's pages are compiled in. Regenerate them when they change.
 WEBUI_ASSETS = $(shell find src/webui/assets -type f)
@@ -150,7 +253,7 @@ src/webui/webui_assets.c: $(WEBUI_ASSETS) tools/gen_webui_assets.py
 	@echo "  GEN   $@"
 	@python3 tools/gen_webui_assets.py
 
-$(TARGET).img: $(HATARI_LIB)
+$(TARGET).img: $(EMU_LIB)
 
 ifneq ($(filter 4 5,$(RASPPI)),)
 VIDEOCORE_LIBS :=
@@ -164,7 +267,7 @@ VIDEOCORE_LIBS := \
 	$(CIRCLEHOME)/addon/linux/liblinuxemu.a
 endif
 
-LIBS := $(HATARI_LIB) \
+LIBS := $(EMU_LIB) \
 	$(CIRCLE_STDLIB_INSTALL_DIR)/lib/libm.a \
 	$(CIRCLE_STDLIB_INSTALL_DIR)/lib/libc.a \
 	$(CIRCLE_STDLIB_INSTALL_DIR)/lib/libcirclenewlib.a \
@@ -181,13 +284,16 @@ LIBS := $(HATARI_LIB) \
 	$(CIRCLEHOME)/lib/sched/libsched.a \
 	$(CIRCLEHOME)/lib/libcircle.a
 
-EXTRACLEAN += $(OBJS) src/*.o src/port/*.d src/*.d src/webui/*.d src/sdcard/*.d \
+EXTRACLEAN += $(OBJS) src/*.o src/port/*.o src/port/*.d src/port/ii/*.o src/port/ii/*.d \
+              src/port/plus/*.o src/port/plus/*.d src/*.d src/webui/*.d src/sdcard/*.d \
               src/av/*.o src/av/*.d src/kms/common/*.o src/kms/common/*.d \
               src/kms/pi4/*.o src/kms/pi4/*.d \
-              src/kms/pi5/*.o src/kms/pi5/*.d src/v3d/*.o src/v3d/*.d
+              src/kms/pi5/*.o src/kms/pi5/*.d src/v3d/*.o src/v3d/*.d $(EMU_LIB)
 .PHONY: distclean
 
 distclean: clean
 	rm -rf $(BUILD)
 
 -include $(DEPS)
+
+endif

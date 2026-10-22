@@ -10,18 +10,21 @@
 
 SRC_DIR=$(cd "$(dirname "$0")" && pwd)
 
-# The kernels, one per board. A release has them all; a card built for one
-# board (build_sdcard.sh pi3) needs only one.
+# The kernels: the Mac Plus's for each board, the Mac II's for the Pi 4
+# and 5. A release has them all; a card built for one board
+# (build_sdcard.sh pi3) needs only that board's.
 KERNELS=(
-    "kernel.img"        # Pi Zero, Zero W
-    "kernel7.img"       # Pi 2
-    "kernel8-32.img"    # Pi 3, Pi Zero 2 W
-    "kernel8-rpi4.img"  # Pi 4 B, Pi 400 (64-bit)
-    "kernel_2712.img"   # Pi 5, Pi 500, Pi 500+ (64-bit)
+    "macplus.img"        # Pi Zero, Zero W
+    "macplus7.img"       # Pi 2
+    "macplus8-32.img"    # Pi 3, Pi Zero 2 W
+    "macplus8-rpi4.img"  # Pi 4 B, Pi 400 (64-bit)
+    "macii8-rpi4.img"
+    "macplus_2712.img"   # Pi 5, Pi 500, Pi 500+ (64-bit)
+    "macii_2712.img"
 )
 
-# What the Pi 4 boots with besides its kernel: needed when kernel8-rpi4.img
-# is on the card.
+# What the Pi 4 boots with besides its kernels: needed when
+# macplus8-rpi4.img is on the card.
 PI4_FILES=(
     "start4.elf"
     "fixup4.dat"
@@ -33,7 +36,7 @@ PI4_FILES=(
 )
 
 # What the Pi 5 boots with besides its kernel (its firmware is in its
-# EEPROM): needed when kernel_2712.img is on the card.
+# EEPROM): needed when macplus_2712.img is on the card.
 PI5_FILES=(
     "bcm2712-rpi-5-b.dtb"
     "bcm2712d0-rpi-5-b.dtb"
@@ -55,8 +58,9 @@ REQUIRED_FILES=(
     "LICENSE.txt"
     "README.txt"
     "licenses/README.txt"
-    "licenses/hatari.txt"
-    "licenses/emutos.txt"
+    "licenses/basilisk2.txt"
+    "licenses/umac.txt"
+    "licenses/musashi.txt"
     "licenses/zlib.txt"
     "licenses/Apache-2.0.txt"
     "licenses/crt-pi.txt"
@@ -93,11 +97,8 @@ REQUIRED_FILES=(
 
     # User folders: the READMEs keep them in zip files
     "disks/README.txt"
-    "hd/README.txt"
-    "tos/TOS.txt"
-
-    # EmuTOS (make_emutos.sh)
-    "tos/etos1024k.img"
+    "shared/README.txt"
+    "roms/ROMS.txt"
 )
 
 RELEASE=0
@@ -162,7 +163,7 @@ done
 
 # The kernels must be this version (and for a release, built from committed
 # files).
-version="BMAtariST $("$SRC_DIR/tools/version.sh" --semver) ($("$SRC_DIR/tools/version.sh" --git),"
+version="BMMacintosh $("$SRC_DIR/tools/version.sh" --semver) ($("$SRC_DIR/tools/version.sh" --git))"
 kernels_found=0
 for kernel in "${KERNELS[@]}"
 do
@@ -179,16 +180,16 @@ do
     kernels_found=$((kernels_found + 1))
     if ! grep -qaF "$version" "$path"
     then
-        echo "$kernel is not \"$version ...\": rebuild it"
+        echo "$kernel is not \"$version\": rebuild it"
         problems=1
     fi
-    if [ "$RELEASE" -eq 1 ] && grep -qaE "BMAtariST [^ ]+ \([0-9a-f]+-dirty," "$path"
+    if [ "$RELEASE" -eq 1 ] && grep -qaE "BMMacintosh [^ ]+ \([0-9a-f]+-dirty\)" "$path"
     then
         echo "$kernel was built with uncommitted changes (-dirty)"
         problems=1
     fi
 done
-if [ -s "$RELEASE_DIRECTORY/kernel8-rpi4.img" ]
+if [ -s "$RELEASE_DIRECTORY/macplus8-rpi4.img" ]
 then
     for pi4_file in "${PI4_FILES[@]}"
     do
@@ -200,7 +201,7 @@ then
     done
 fi
 
-if [ -s "$RELEASE_DIRECTORY/kernel_2712.img" ]
+if [ -s "$RELEASE_DIRECTORY/macplus_2712.img" ]
 then
     for pi5_file in "${PI5_FILES[@]}"
     do

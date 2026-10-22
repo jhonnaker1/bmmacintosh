@@ -1,28 +1,32 @@
 #
-# BMAtariST - bare metal Atari ST, STE, TT and Falcon emulator for the
-# Raspberry Pi 2, 3, 4 and 5
+# BMMacintosh - bare metal 68k Macintosh emulator for the Raspberry Pi:
+# the Mac Plus (every Pi) and the Mac II and Quadra (Pi 4 and 5)
 #
 # Raspberry Pi firmware settings. Emulator options are in cmdline.txt.
 #
 
-# BMAtariST runs in 32 bit mode on the Pi Zero, 2 and 3, and in 64 bit mode
-# on the Pi 4 and 5, with a kernel for each board.
+# Each Mac is a kernel of its own: macplus*.img the Mac Plus (umac),
+# macii*.img the Mac II and Quadra (Basilisk II). BMMacintosh's menu (F12,
+# Machine) switches between them by changing the kernel= lines of the
+# [pi4] and [pi5] sections below, and restarting.
+# They run in 32 bit mode on the Pi Zero, 2 and 3, and in 64 bit mode on
+# the Pi 4 and 5.
 arm_64bit=0
 # [pi0] also matches the Zero 2 W, which [pi02] then sets to the Pi 3's.
 [pi0]
-kernel=kernel.img
+kernel=macplus.img
 [pi2]
-kernel=kernel7.img
+kernel=macplus7.img
 [pi3]
-kernel=kernel8-32.img
+kernel=macplus8-32.img
 [pi02]
-kernel=kernel8-32.img
+kernel=macplus8-32.img
 # The Pi 4 B and Pi 400 (both match [pi4]). As in Circle's boot/config64.txt:
 # 64 bit mode, the kernel loaded at 0x80000, and Circle's ARM stub.
 [pi4]
 arm_64bit=1
 kernel_address=0x80000
-kernel=kernel8-rpi4.img
+kernel=macii8-rpi4.img
 armstub=armstub8-rpi4.bin
 # The Pi 5, Pi 500 and Pi 500+ (all match [pi5]). As in Circle's
 # boot/config64.txt; the Pi 5 needs no ARM stub. Its firmware sets the
@@ -30,20 +34,18 @@ armstub=armstub8-rpi4.bin
 [pi5]
 arm_64bit=1
 kernel_address=0x80000
-kernel=kernel_2712.img
+kernel=macii_2712.img
 framebuffer_depth=32
 framebuffer_ignore_alpha=1
 [all]
 
-# Video: 1280x720 at 60 Hz, the right rate for an NTSC ST (60.04 Hz), as
-# EmuTOS's US version (the one on the card) sets it up. A PAL ST runs at
-# 50.05 Hz: hdmi_mode=19 below. The emulator's frames are locked to the
-# display when its refresh rate is that close, which gives perfectly smooth
-# scrolling. On the Pi 4, Pi 400 and Pi 5 BMAtariST sets the display to the
-# ST's exact rate itself, PAL, NTSC or the monochrome monitor's 71 Hz
-# (see docs/PI4.md); hdmi_mode only chooses the resolution on the Pi 4 (the
-# Pi 5's firmware uses the display's preferred one; choose it under Video,
-# Resolution).
+# Video: 1280x720 at 60 Hz, the Mac's rate (60.15 Hz) near enough: the
+# emulator's frames are locked to the display when its refresh rate is
+# that close, which gives smooth scrolling. On the Pi 4, Pi 400 and Pi 5
+# BMMacintosh sets the display to the Mac's exact rate itself (see
+# docs/PI4.md); hdmi_mode only chooses the resolution on the Pi 4 (the
+# Pi 5's firmware uses the display's preferred one; choose it under
+# Video, Resolution).
 disable_overscan=1
 hdmi_group=1
 hdmi_mode=4

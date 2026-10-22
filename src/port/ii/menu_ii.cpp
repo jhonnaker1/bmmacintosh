@@ -1,0 +1,332 @@
+/*
+ * menu_ii.cpp - the Mac II and Quadra's part of the menu, keyboard and
+ * mouse, for BMMacintosh.
+ *
+ * The menu's top items (menu.c shows them): the floppy disks and the
+ * CD-ROM (put in while the Mac runs; the Mac ejects them), the hard disks
+ * and the shared folder (from the Mac's next start), the ROM and the
+ * memory, and restarting. All are kept in macii.prefs.
+ *
+ * Keys and the mouse go to the Mac's Apple Desktop Bus (adb.cpp).
+ *
+ * This file is part of BMMacintosh, a bare metal 68k Macintosh emulator for
+ * the Raspberry Pi. See LICENSE for licensing details.
+ */
+
+#include "sysdeps.h"
+
+#include "main.h"
+#include "prefs.h"
+#include "adb.h"
+#include "macos_util.h"
+#include "cpu_emulation.h"
+
+#include <sys/stat.h>
+
+#include "../bmmac.h"
+#include "ii.h"
+
+bool ii_insert_disk(const char *path, bool cdrom);
+const char *ii_floppy_name(int n);
+
+/* ---- Keyboard and mouse -------------------------------------------------------- */
+
+#define MAC_CAPS_LOCK 0x39
+
+static bool key_down[128];
+static bool caps_locked;
+static int mouse_buttons;
+
+/* Keys pressed before the Mac has started (Shift held to start without
+   extensions): Basilisk II queues them, but tells the Mac only with the
+   next key's interrupt. ii_adb_frame() tells it once it has started. */
+static bool adb_waiting;
+
+void ii_adb_frame(void)
+{
+	if (adb_waiting && HasMacStarted()) {
+		adb_waiting = false;
+		SetInterruptFlag(INTFLAG_ADB);
+		TriggerInterrupt();
+	}
+}
+
+void emu_key(int code, int pressed)
+{
+	if (code < 0 || code > 127)
+		return;
+	/* The Mac's Caps Lock stays down while it is locked. */
+	if (code == MAC_CAPS_LOCK) {
+		if (!pressed)
+			return;
+		caps_locked = !caps_locked;
+		pressed = caps_locked;
+	}
+	if (pressed == key_down[code])
+		return;
+	key_down[code] = pressed != 0;
+	if (pressed)
+		ADBKeyDown(code);
+	else
+		ADBKeyUp(code);
+	if (!HasMacStarted())
+		adb_waiting = true;
+}
+
+void emu_release_keys(void)
+{
+	for (int code = 0; code < 128; code++)
+		if (key_down[code] && code != MAC_CAPS_LOCK) {
+			key_down[code] = false;
+			ADBKeyUp(code);
+		}
+	if (mouse_buttons & 1)
+		ADBMouseUp(0);
+	mouse_buttons = 0;
+}
+
+void emu_mouse(int dx, int dy, int buttons)
+{
+	if (dx != 0 || dy != 0)
+		ADBMouseMoved(dx, dy);
+	if ((buttons ^ mouse_buttons) & 1) {
+		if (buttons & 1)
+			ADBMouseDown(0);
+		else
+			ADBMouseUp(0);
+	}
+	mouse_buttons = buttons;
+}
+
+/* ---- Disks --------------------------------------------------------------------- */
+
+static const char *const disk_exts[] = {
+	"dsk", "img", "image", "hfv", "hda", "dc42", "diskcopy", "toast", "iso", "cdr", "bin", NULL
+};
+static const char *const cd_exts[] = {"iso", "toast", "cdr", "img", "bin", NULL};
+
+static bool is_cd_image(const char *path)
+{
+	const char *dot = strrchr(path, '.');
+	return dot != NULL && (strcasecmp(dot, ".iso") == 0 || strcasecmp(dot, ".toast") == 0
+	                       || strcasecmp(dot, ".cdr") == 0);
+}
+
+/* A floppy's size: 400K, 800K or 1.4 MB, with or without a DiskCopy 4.2
+   header. */
+static bool is_floppy_image(const char *path)
+{
+	struct stat st;
+	if (stat(path, &st) != 0)
+		return false;
+	long size = (long) st.st_size, data = size;
+	if (size % 512 == 84)
+		data = size - 84;
+	return data == 409600 || data == 819200 || data == 1474560;
+}
+
+static void insert_disk(bool cdrom)
+{
+	char path[512];
+	if (!bmmac_browse(cdrom ? "Insert a CD-ROM Image" : "Insert a Floppy Disk", "disks",
+	                  cdrom ? cd_exts : disk_exts, path, sizeof path))
+		return;
+	if (!ii_insert_disk(path, cdrom))
+		osd_message(cdrom ? "Eject the CD-ROM on the Mac first (Command-E)."
+		                  : "Both floppy drives are full: eject one on the Mac first.", TRUE);
+}
+
+static void restart_message(void)
+{
+	osd_message("This takes effect when the Mac restarts (Restart the Mac).", TRUE);
+}
+
+static void hard_disks_menu(void)
+{
+	enum { H_ADD = 1 };
+	int sel = 0;
+	for (;;) {
+		struct osd_item items[12];
+		int n = 0, chosen;
+		const char *name;
+		for (int i = 0; i < 8 && (name = PrefsFindString("disk", i)) != NULL; i++)
+			items[n++] = {bmmac_base_name(name), "Remove", 0, 100 + i};
+		if (n == 0)
+			items[n++] = {"(no hard disks)", NULL, OSD_ITEM_LABEL, -1};
+		items[n++] = {"", NULL, OSD_ITEM_LABEL, -1};
+		items[n++] = {"Add a Hard Disk Image...", NULL, OSD_ITEM_SUBMENU, H_ADD};
+		items[n++] = {"", NULL, OSD_ITEM_LABEL, -1};
+		items[n++] = {"Hard disks change when the Mac restarts.", NULL, OSD_ITEM_LABEL, -1};
+		chosen = osd_menu("Hard Disks", items, n, &sel);
+		if (chosen < 0)
+			return;
+		if (chosen == H_ADD) {
+			char path[512];
+			if (!bmmac_browse("Add a Hard Disk Image", "disks", disk_exts, path, sizeof path))
+				continue;
+			PrefsAddString("disk", path);
+		} else if (chosen >= 100) {
+			PrefsRemoveItem("disk", chosen - 100);
+		}
+		SavePrefs();
+		restart_message();
+	}
+}
+
+/* ---- ROM and memory --------------------------------------------------------------- */
+
+static void rom_menu(void)
+{
+	const struct bmmac_rom *roms[32];
+	const char *names[33];
+	int n = 0, current = 0, i;
+	const char *now = PrefsFindString("rom");
+	bmmac_rom_scan();
+	for (i = 0; i < bmmac_rom_count() && n < 32; i++) {
+		const struct bmmac_rom *r = bmmac_rom_get(i);
+		if (r->machine != BMMAC_II)
+			continue;
+		if (now != NULL && strcmp(now, r->path) == 0)
+			current = n;
+		roms[n] = r;
+		names[n++] = r->name;
+	}
+	names[n] = NULL;
+	if (n == 0) {
+		osd_message("No Mac II or Quadra ROM in the roms folder (see roms/ROMS.txt).", TRUE);
+		return;
+	}
+	i = osd_choose("ROM", names, current);
+	if (i < 0 || i == current)
+		return;
+	PrefsReplaceString("rom", roms[i]->path);
+	SavePrefs();
+	emu_cold_reset();
+}
+
+static void memory_menu(void)
+{
+	static const char *const names[] = {
+		"8 MB", "16 MB", "32 MB", "64 MB", "128 MB", "256 MB", NULL
+	};
+	static const int sizes[] = {8, 16, 32, 64, 128, 256};
+	int mb = PrefsFindInt32("ramsize") >> 20, current = 2, i;
+	for (i = 0; i < 6; i++)
+		if (sizes[i] == mb)
+			current = i;
+	i = osd_choose("Memory", names, current);
+	if (i < 0 || i == current)
+		return;
+	PrefsReplaceInt32("ramsize", sizes[i] << 20);
+	SavePrefs();
+	emu_cold_reset();
+}
+
+/* ---- The menu's items ------------------------------------------------------------- */
+
+enum {
+	I_FLOPPY = 100, I_CDROM, I_HD, I_SHARED, I_ROM, I_MEMORY, I_RESTART
+};
+
+int emu_menu_items(struct osd_item *items, int max)
+{
+	static char floppies[64], ram[16];
+	const char *a = ii_floppy_name(0), *b = ii_floppy_name(1);
+	const char *cd = PrefsFindString("cdrom");
+	const char *extfs = PrefsFindString("extfs");
+	int n = 0;
+	if (a[0] && b[0])
+		snprintf(floppies, sizeof floppies, "%s, %s", bmmac_base_name(a), bmmac_base_name(b));
+	else
+		snprintf(floppies, sizeof floppies, "%s", a[0] ? bmmac_base_name(a)
+		                                          : b[0] ? bmmac_base_name(b) : "(none)");
+	snprintf(ram, sizeof ram, "%d MB", (int) (PrefsFindInt32("ramsize") >> 20));
+	const struct osd_item mine[] = {
+		{"Insert a Floppy Disk", floppies, OSD_ITEM_SUBMENU, I_FLOPPY},
+		{"Insert a CD-ROM", cd && cd[0] ? bmmac_base_name(cd) : "(none)", OSD_ITEM_SUBMENU,
+		 I_CDROM},
+		{"Hard Disks", NULL, OSD_ITEM_SUBMENU, I_HD},
+		{"Shared Folder (SD Card disk)", NULL, bmmac_check(extfs != NULL && extfs[0]), I_SHARED},
+		{"ROM", PrefsFindString("rom") ? bmmac_base_name(PrefsFindString("rom")) : "(none)",
+		 OSD_ITEM_SUBMENU, I_ROM},
+		{"Memory", ram, OSD_ITEM_SUBMENU, I_MEMORY},
+		{"Restart the Mac", NULL, 0, I_RESTART},
+	};
+	for (unsigned i = 0; i < sizeof mine / sizeof mine[0] && n < max; i++)
+		items[n++] = mine[i];
+	return n;
+}
+
+int emu_menu_choose(int id)
+{
+	switch (id) {
+	case I_FLOPPY:
+		insert_disk(false);
+		return TRUE;
+	case I_CDROM:
+		insert_disk(true);
+		return TRUE;
+	case I_HD:
+		hard_disks_menu();
+		return FALSE;
+	case I_SHARED: {
+		const char *extfs = PrefsFindString("extfs");
+		if (extfs != NULL && extfs[0]) {
+			PrefsReplaceString("extfs", "");
+		} else {
+			char shared[256];
+			bmmac_card_path(shared, sizeof shared, "shared", "");
+			shared[strlen(shared) - 1] = '\0';
+			mkdir(shared, 0777);
+			PrefsReplaceString("extfs", shared);
+		}
+		SavePrefs();
+		restart_message();
+		return FALSE;
+	}
+	case I_ROM:
+		rom_menu();
+		return FALSE;
+	case I_MEMORY:
+		memory_menu();
+		return FALSE;
+	case I_RESTART:
+		emu_cold_reset();
+		return TRUE;
+	}
+	return TRUE;
+}
+
+/* ---- The web UI's "start this file" ------------------------------------------------ */
+
+/* A floppy or CD-ROM image goes into its drive (the first floppy drive),
+   a hard disk image becomes the first hard disk, and the Mac restarts
+   from it. */
+void emu_autostart(const char *path)
+{
+	if (is_cd_image(path)) {
+		PrefsReplaceString("cdrom", path);
+	} else if (is_floppy_image(path)) {
+		PrefsReplaceString("floppy", path, 0);
+	} else {
+		const char *first = PrefsFindString("disk", 0);
+		if (first == NULL || strcmp(first, path) != 0) {
+			/* In front of the others: the Mac starts from the first. */
+			int n = 0;
+			char *others[8];
+			const char *s;
+			while (n < 8 && (s = PrefsFindString("disk", 0)) != NULL) {
+				others[n++] = strdup(s);
+				PrefsRemoveItem("disk", 0);
+			}
+			PrefsAddString("disk", path);
+			for (int i = 0; i < n; i++) {
+				if (strcmp(others[i], path) != 0)
+					PrefsAddString("disk", others[i]);
+				free(others[i]);
+			}
+		}
+	}
+	SavePrefs();
+	emu_cold_reset();
+}

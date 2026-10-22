@@ -27,12 +27,12 @@
 //
 // On a PC (tools/pi4scaler) waiting yields the thread instead.
 //
-// This file is part of BMAtariST, a bare metal Atari ST emulator for
+// This file is part of BMMacintosh, a bare metal 68k Macintosh emulator for
 // the Raspberry Pi. See LICENSE for licensing details.
 //
 
-#ifndef BMATARIST_AV_FRAMESHARE_H_
-#define BMATARIST_AV_FRAMESHARE_H_
+#ifndef BMMAC_AV_FRAMESHARE_H_
+#define BMMAC_AV_FRAMESHARE_H_
 
 #ifdef __circle__
 #include <circle/synchronize.h>

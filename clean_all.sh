@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# Cleans everything: the kernel, the compiled Hatari library, the SD card
+# Cleans everything: the kernels, the compiled emulator libraries, the SD card
 # staging folder, and the third party builds inside circle-stdlib (which is
 # also reset to its pinned revision, undoing src/patches/).
 #
@@ -12,7 +12,7 @@
 
 if [ ! -f sdcard/config.txt ]
 then
-    echo "Must be run from the BMAtariST root directory." >&2
+    echo "Must be run from the BMMacintosh root directory." >&2
     exit 1
 fi
 
@@ -36,7 +36,7 @@ then
 else
     rm -rf build
 fi
-rm -f kernel*.img kernel*.elf kernel*.lst kernel*.map
+rm -f mac*.img mac*.elf mac*.lst mac*.map
 
 cd "$SRC_DIR/third_party/circle-stdlib" || exit 1
 find . -name config.cache -exec rm -f {} \;

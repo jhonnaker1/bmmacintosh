@@ -6,12 +6,16 @@
 #
 #   ./build_sdcard.sh [pi0|pi2|pi3|pi4|pi5 ...] [--skip-patches] [--skip-tests]
 #
-#   pi3     kernel8-32.img: Pi 3 and Pi Zero 2 W
-#   pi2     kernel7.img: Pi 2
-#   pi0     kernel.img: Pi Zero and Zero W
-#   pi4     kernel8-rpi4.img and armstub8-rpi4.bin: Pi 4 B and Pi 400
-#   pi5     kernel_2712.img: Pi 5, Pi 500 and Pi 500+
+#   pi3     macplus8-32.img: Pi 3 and Pi Zero 2 W
+#   pi2     macplus7.img: Pi 2
+#   pi0     macplus.img: Pi Zero and Zero W
+#   pi4     macplus8-rpi4.img, macii8-rpi4.img and armstub8-rpi4.bin: Pi 4 B
+#           and Pi 400
+#   pi5     macplus_2712.img and macii_2712.img: Pi 5, Pi 500 and Pi 500+
 #   (none)  all of them, as a release has
+#
+# The macplus kernels are the Mac Plus (umac), the macii ones the Mac II
+# and Quadra (Basilisk II).
 #
 # Several boards can be given, e.g. ./build_sdcard.sh pi4 pi5.
 #
@@ -70,13 +74,13 @@ built_board() {
     fi
 }
 
-kernel_name() {
+kernel_names() {
     case "$1" in
-        pi0) echo kernel.img ;;
-        pi2) echo kernel7.img ;;
-        pi3) echo kernel8-32.img ;;
-        pi4) echo kernel8-rpi4.img ;;
-        pi5) echo kernel_2712.img ;;
+        pi0) echo macplus.img ;;
+        pi2) echo macplus7.img ;;
+        pi3) echo macplus8-32.img ;;
+        pi4) echo macplus8-rpi4.img macii8-rpi4.img ;;
+        pi5) echo macplus_2712.img macii_2712.img ;;
     esac
 }
 
@@ -109,7 +113,7 @@ then
     fi
 fi
 
-# The PC tests (tools/hostsim, with EmuTOS).
+# The PC tests (tools/hostsim: both Macs, with the ROMs in BMMAC_ROMS).
 if [ "$SKIP_TESTS" -eq 0 ]
 then
     echo "=============================================================="
@@ -127,7 +131,7 @@ then
     run_tests "$SRC_DIR/tools/pi4scaler/run_tests.sh"
 fi
 
-# The SD card is staged once; each board's build adds its kernel.
+# The SD card is staged once; each board's build adds its kernels.
 rm -rf "$STAGING_DIR"
 mkdir -p "$STAGING_DIR"
 
@@ -154,31 +158,25 @@ folder_readme() {
     mkdir -p "$STAGING_DIR/$1"
     printf '%s\r\n' "$2" > "$STAGING_DIR/$1/README.txt"
 }
-folder_readme disks    "Floppy disk images: .st .msa .dim .stx .scp, also zipped or gzipped (insert them from the menu, F12, Floppy Disks, or start one from the web UI)"
-folder_readme snapshots "Saved states (menu, F12, Save State and Load State)"
-folder_readme hd       "Hard disks: a folder here can be the ST's drive C: (menu, F12, Hard Disks, Folder as a Drive), and ACSI or IDE hard disk images go here too"
-# EmuTOS, so the card starts with nothing added; the user's own TOS images
-# go in the same folder.
-if ! "$SRC_DIR/make_emutos.sh" "$STAGING_DIR"
-then
-    echo "EmuTOS could not be fetched (it is cached once it has been)." >&2
-    exit 1
-fi
-cp "$SRC_DIR/docs/TOS.txt" "$STAGING_DIR/tos/TOS.txt"
+folder_readme disks    "The Mac's disk images: hard disks and floppies (.dsk .img .image .hfv .hda), CD-ROMs (.iso .toast). See README.txt."
+folder_readme shared   "This folder is a disk on the Mac II's desktop, named SD Card (menu, F12, Shared Folder): copy files here to give them to the Mac."
+# The ROMs are the user's own (Apple's aren't free): what to put here.
+mkdir -p "$STAGING_DIR/roms"
+cp "$SRC_DIR/docs/ROMS.txt" "$STAGING_DIR/roms/ROMS.txt"
 
 for board in "${BOARDS[@]}"
 do
-    kernel=$(kernel_name "$board")
+    kernels=$(kernel_names "$board")
     echo "=============================================================="
-    echo "BUILDING $board ($kernel)"
+    echo "BUILDING $board ($kernels)"
     echo "=============================================================="
     if [ "$SKIP_PATCHES" -eq 1 ] && [ "$(built_board)" = "$board" ]
     then
         if [ "$board" = "pi4" ] || [ "$board" = "pi5" ]
         then
-            export BMATARIST_AARCH=64
+            export BMMAC_AARCH=64
         else
-            export BMATARIST_AARCH=32
+            export BMMAC_AARCH=32
         fi
         source "$SRC_DIR/get_gnu_toolchain.sh"
         make -j"$(nproc)"
@@ -187,12 +185,15 @@ do
         ./make_all.sh "$board"
     fi
 
-    if [ ! -f "$SRC_DIR/$kernel" ]
-    then
-        echo "Expected kernel was not created: $kernel" >&2
-        exit 1
-    fi
-    cp "$SRC_DIR/$kernel" "$STAGING_DIR/"
+    for kernel in $kernels
+    do
+        if [ ! -f "$SRC_DIR/$kernel" ]
+        then
+            echo "Expected kernel was not created: $kernel" >&2
+            exit 1
+        fi
+        cp "$SRC_DIR/$kernel" "$STAGING_DIR/"
+    done
     if [ "$board" = "pi4" ]
     then
         # Built by make_all.sh from Circle's boot/armstub; the next board's

@@ -1,7 +1,7 @@
 //
 // kernel.cpp
 //
-// This file is part of BMAtariST, a bare metal Atari ST emulator for
+// This file is part of BMMacintosh, a bare metal 68k Macintosh emulator for
 // the Raspberry Pi. See LICENSE for licensing details.
 //
 // Parts of the USB, frame buffer and sound handling are based on BMC64's
@@ -30,13 +30,13 @@
 #include <circle_glue.h>
 
 extern "C" {
-// From src/port/platform.c: the emulator's entry point, which runs on core
+// From src/port/frontend.c: the emulator's entry point, which runs on core
 // 1, and its Reboot / Shut Down request.
-void bmatarist_main(void);
-void bmatarist_request_power(int power_off);
+void bmmac_main(void);
+void bmmac_request_power(int power_off);
 }
 
-static const char FromKernel[] = "bmatarist";
+static const char FromKernel[] = "bmmac";
 
 // Sample rate the VideoCore plays audio at.
 #define HW_SAMPLE_RATE 44100
@@ -85,7 +85,7 @@ void CEmulatorCore::Run(unsigned nCore) {
     while (!m_bLaunch) {
       DataMemBarrier();
     }
-    bmatarist_main();
+    bmmac_main();
   }
 #if RASPPI >= 4
   // Cores 2 and 3 help draw smoothed and CRT frames (src/av/video.h).
@@ -183,8 +183,7 @@ bool CKernel::Initialize(void) {
     return false;
   }
   mLogger.RegisterPanicHandler(PanicHandler);
-  mLogger.Write(FromKernel, LogNotice, "BMAtariST " BMATARIST_VERSION " (" BMATARIST_GIT
-                ", Hatari " HATARI_GIT ")");
+  mLogger.Write(FromKernel, LogNotice, "BMMacintosh " BMMAC_VERSION " (" BMMAC_GIT ")");
 
   if (!mTimer.Initialize()) {
     return false;
@@ -210,8 +209,8 @@ bool CKernel::Initialize(void) {
     mLogger.Write(FromKernel, LogError, "Cannot mount the SD card");
     return false;
   }
-  // Settings saved by the BMAtariST menu win over cmdline.txt.
-  mOptions.LoadSettings("SD:/bmatarist.cfg");
+  // Settings saved by the BMMacintosh menu win over cmdline.txt.
+  mOptions.LoadSettings("SD:/bmmac.cfg");
 
   // Until here the log went to the serial port. No setting means no log.
   const char *logging = mOptions.Get("enable_logging", "off");
@@ -238,7 +237,7 @@ bool CKernel::Initialize(void) {
 
   const char *audio_out = mOptions.Get("audio_out", "auto");
 
-  // Full scale: BMAtariST's volume (the menu, volume=) is applied as the
+  // Full scale: BMMacintosh's volume (the menu, volume=) is applied as the
   // samples are written, and the IIgs sets its own (its Control Panel).
   const int volume = 100;
 
@@ -314,7 +313,7 @@ TShutdownMode CKernel::Run(void) {
   // One core (the Pi Zero): the emulator runs here and yields once a frame,
   // which lets the USB task and Circle's other tasks run.
   new CUSBPlugAndPlayTask;
-  bmatarist_main();
+  bmmac_main();
   return ShutdownHalt;
 #else
   mEmulatorCore.Launch();
@@ -403,7 +402,7 @@ void CKernel::CheckPowerButton(void) {
     m_nPowerButtonDown = now | 1;
   } else if (now - m_nPowerButtonDown >= CLOCKHZ / 20) {
     mLogger.Write(FromKernel, LogNotice, "Power button: Shut Down");
-    bmatarist_request_power(1);
+    bmmac_request_power(1);
     m_bPowerButtonSeenUp = false;
   }
 }

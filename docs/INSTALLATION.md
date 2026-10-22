@@ -7,7 +7,7 @@
   or A+, a Raspberry Pi Zero 2 W or a Raspberry Pi 2 Model B run the ST and
   STE, but may not keep up with everything (a Pi Zero or Zero W starts too,
   but is too slow; see the User Guide)
-- A microSD card (BMAtariST itself needs only a few MB; floppy images are
+- A microSD card (BMMacintosh itself needs only a few MB; floppy images are
   under 1 MB each)
 - An HDMI display, ideally one that accepts 720p at 60 Hz (and 50 Hz, for
   PAL programs)
@@ -16,7 +16,7 @@
 
 ## Prepare the SD card
 
-1. Download `bmatarist-v<version>.zip` from the releases page, or build it
+1. Download `bmmac-v<version>.zip` from the releases page, or build it
    yourself (see [BUILDING.md](BUILDING.md)) and use `build/sdcard/`.
 2. Format the SD card as FAT32.
 3. Extract the zip to the root of the card, so that the kernels
@@ -35,8 +35,8 @@ copying the files.
 ## TOS
 
 The card starts EmuTOS, the free TOS (`tos/etos1024k.img`), which runs on
-every machine BMAtariST emulates, so nothing else is needed. Atari's own
-TOS is copyrighted, so BMAtariST can't include it: copy images of your own
+every machine BMMacintosh emulates, so nothing else is needed. Atari's own
+TOS is copyrighted, so BMMacintosh can't include it: copy images of your own
 into the `tos` folder and choose one in the menu (F12, *Machine*, *TOS*).
 See [TOS.txt](TOS.txt).
 
@@ -65,7 +65,7 @@ See [Networking and the web UI](USER_GUIDE.md#networking-and-the-web-ui).
 
 Copy the new release's files over the old ones, except for files you have
 changed: `config.txt` and `cmdline.txt` if you edited them. Your settings
-(`bmatarist.cfg`, `hatari.cfg`, `wpa_supplicant.conf`), your TOS images,
+(`bmmac.cfg`, `hatari.cfg`, `wpa_supplicant.conf`), your TOS images,
 disk images and saved states are not in the release zip and stay as they are.
 
 With networking on, a new kernel (`kernel_2712.img` for a Pi 5, 500 or

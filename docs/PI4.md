@@ -1,13 +1,13 @@
 # Raspberry Pi 4 B and Pi 400
 
-BMAtariST runs on the Pi 4 B and Pi 400 as a 64-bit kernel,
+BMMacintosh runs on the Pi 4 B and Pi 400 as a 64-bit kernel,
 `kernel8-rpi4.img`. The emulator, menus, USB keyboards, mice and gamepads,
 networking and the web UI work as on the Pi 3.
 
 Pi 4 support comes from [BMA800XL](https://github.com/aminch/bma800xl)
 1.1.0, by way of [BMCoco](https://github.com/jhonnaker1/bmcoco).
-BMA800XL's picture is 8-bit with a palette; BMCoco's and BMAtariST's are
-RGB565 (BMAtariST converts Hatari's 32-bit picture as it copies it), so the
+BMA800XL's picture is 8-bit with a palette; BMCoco's and BMMacintosh's are
+RGB565 (BMMacintosh converts Hatari's 32-bit picture as it copies it), so the
 display code (`src/av/video.cpp`, `src/av/scaler.cpp`) takes RGB565
 instead. The rest is BMA800XL's.
 
@@ -39,20 +39,20 @@ run the display at exactly the ST's frame rate. It is chosen with
 
 If something isn't as expected (an unknown mode, a step that doesn't
 complete), the driver falls back to the firmware's mode or framebuffer.
-The log (serial, or `bmatarist.log`) shows what happened, for example:
+The log (serial, or `bmmac.log`) shows what happened, for example:
 
 ```
 kms: HDMI0, HVS channel 1, 1280x720
 kms: EDID (HDMI0): 2 block(s), HDMI, 9 video modes
 kms: Video mode VIC 4, 1280x720 at 74154395 Hz pixel clock (59.923 Hz)
-BMAtariST: display refresh rate 50.053 Hz
+BMMacintosh: display refresh rate 50.053 Hz
 ```
 
 The driver was written by examining the Linux `vc4` driver and the BCM2711
 device tree, documenting the hardware's behaviour, and writing BMA800XL's
 own code from that.
 
-A bare metal kernel can't use the Pi 4's OpenGL ES, so BMAtariST drives
+A bare metal kernel can't use the Pi 4's OpenGL ES, so BMMacintosh drives
 the Pi 4's 3D GPU itself (`src/v3d/`, from BMA800XL 1.2.0, by way of
 BMCoco) to draw the smooth and CRT pictures (`smooth`, `crt_shader`,
 `crt_curvature`): crt-pi, at up to 1080 lines and scaled up to fill larger

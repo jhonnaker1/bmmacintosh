@@ -1,13 +1,28 @@
 #!/bin/bash
 #
-# Runs the emulator port on the PC (see host_sim.c) through a set of
-# scripted tests and checks the results.
+# Runs both emulator ports on the PC (see host_sim.c) through a set of
+# scripted tests and checks the results: the Mac II and Quadra
+# (build/macii_sim, Basilisk II) and the Mac Plus (build/macplus_sim,
+# umac).
 #
-#   tools/hostsim/run_tests.sh
+#   BMMAC_ROMS=/path/to/roms tools/hostsim/run_tests.sh
 #
-# The tests boot EmuTOS (fetched by make_emutos.sh, as for the SD card) to
-# its desktop. Output, including screenshots (.ppm), goes to
-# tools/hostsim/out/.
+# Apple's ROMs aren't free, so the tests use the user's: BMMAC_ROMS is a
+# folder with MAME's macqd800.zip (the Quadra 650's and 800's ROM) and
+# macplus.zip, or those ROMs as files. The files there whose names start
+# with "mac", or end in .rom, are linked into each test's stand-in SD card.
+# Without BMMAC_ROMS only the tests that need no ROM run. With them, each
+# Mac boots its ROM to the "?" disk.
+#
+# With a System disk too, each Mac starts from it to the Finder:
+#
+#   BMMAC_II_DISK=macos81.hda     a raw Mac OS 8.1 hard disk (MAME's
+#                                 macos81.chd made raw: tools/mac_media.py)
+#   BMMAC_PLUS_DISK=system.dsk    an 800K System 4.3 (or other) floppy
+#
+# They are copied first (the Macs write to them).
+#
+# Output, including screenshots (.ppm), goes to tools/hostsim/out/.
 #
 
 set -u
@@ -15,27 +30,41 @@ set -u
 HERE=$(cd "$(dirname "$0")" && pwd)
 ROOT=$(cd "$HERE/../.." && pwd)
 OUT=$HERE/out
-SIM=$HERE/build/bmatarist_sim
+II=$HERE/build/macii_sim
+PLUS=$HERE/build/macplus_sim
 
 make -s -C "$HERE" -j"$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 2)" || exit 1
 
 rm -rf "$OUT"
-mkdir -p "$OUT/card"
-"$ROOT/make_emutos.sh" "$OUT/card" > /dev/null || exit 1
-TOS=$OUT/card/tos
+mkdir -p "$OUT/roms" "$OUT/empty"
+HAVE_ROMS=0
+if [ -n "${BMMAC_ROMS:-}" ]; then
+    for f in "$BMMAC_ROMS"/mac* "$BMMAC_ROMS"/*.rom "$BMMAC_ROMS"/*.ROM; do
+        [ -f "$f" ] && ln -sf "$f" "$OUT/roms/" && HAVE_ROMS=1
+    done
+fi
 
 FAILED=0
+SKIPPED=0
 pass() { echo "PASS  $1"; }
 fail() { echo "FAIL  $1: $2"; FAILED=$((FAILED + 1)); }
+skip() { echo "SKIP  $1"; SKIPPED=$((SKIPPED + 1)); }
 
-# run NAME REFRESH CMDLINE SCRIPT: runs the simulator in out/NAME, a
-# stand-in SD card with EmuTOS in its tos folder.
+# A copy of a disk image (a clone where the file system can).
+copy_disk() {
+    cp -c "$1" "$2" 2>/dev/null || cp "$1" "$2"
+}
+
+# run SIM NAME REFRESH CMDLINE SCRIPT: runs a simulator in out/NAME, a
+# stand-in SD card with the ROMs in its roms folder and the Pi's
+# config.txt.
 run() {
-    local name=$1 refresh=$2 cmdline=$3 script=$4
+    local sim=$1 name=$2 refresh=$3 cmdline=$4 script=$5
     mkdir -p "$OUT/$name"
-    ln -s "$TOS" "$OUT/$name/tos" 2>/dev/null
-    (cd "$OUT/$name" && printf "$script" | BMATARIST_REFRESH=$refresh \
-        BMATARIST_CMDLINE="root=. $cmdline" "$SIM" > log.txt 2>&1)
+    [ -e "$OUT/$name/roms" ] || ln -s "$OUT/roms" "$OUT/$name/roms"
+    [ -e "$OUT/$name/config.txt" ] || cp "$ROOT/sdcard/config.txt" "$OUT/$name/config.txt"
+    (cd "$OUT/$name" && printf "$script" | BMMAC_REFRESH=$refresh \
+        BMMAC_CMDLINE="root=. $cmdline" "$sim" > log.txt 2>&1)
 }
 
 # check_log NAME REGEX MESSAGE: the log must contain REGEX
@@ -88,33 +117,60 @@ sound_made() {
     fi
 }
 
-# count NAME FILE R G B: how many pixels of that colour the screenshot has
-count() {
-    python3 - "$OUT/$1/$2.ppm" "$3" "$4" "$5" <<'EOF'
+# screen NAME FILE: what's on the screenshot: "question" (the gray desktop
+# with the "?" disk in its middle), "finder" (a menu bar along the top),
+# "menu" (BMMacintosh's: mostly white), or "other"
+screen() {
+    python3 - "$OUT/$1/$2.ppm" <<'EOF'
 import sys
 try:
     data = open(sys.argv[1], 'rb').read()
 except OSError:
-    print(0)
+    print('none')
     sys.exit(0)
 parts = data.split(b'\n', 3)
+w, h = map(int, parts[1].split())
 px = parts[3]
-want = bytes(int(v) for v in sys.argv[2:5])
-print(sum(1 for i in range(0, len(px), 3) if px[i:i + 3] == want))
+def black(x, y):
+    i = (y * w + x) * 3
+    return px[i] < 64 and px[i + 1] < 64 and px[i + 2] < 64
+def white(x, y):
+    i = (y * w + x) * 3
+    return px[i] > 192 and px[i + 1] > 192 and px[i + 2] > 192
+total = w * h
+blacks = sum(1 for y in range(h) for x in range(w) if black(x, y))
+whites = sum(1 for y in range(h) for x in range(w) if white(x, y))
+cx, cy = w // 2, h // 2
+mid = [(x, y) for y in range(cy - 12, cy + 12) for x in range(cx - 10, cx + 10)]
+mid_white = sum(1 for x, y in mid if white(x, y)) / len(mid)
+# The menu bar: a white band at the top with a black line under it.
+bar = max((y for y in range(10, 30) if sum(black(x, y) for x in range(w)) > 0.9 * w),
+          default=None)
+bar_white = bar is not None and sum(white(x, 3) for x in range(w)) > 0.6 * w
+if bar_white:
+    print('finder')
+elif 0.4 < blacks / total < 0.6 and mid_white > 0.5:
+    print('question')
+elif whites / total > 0.7:
+    print('menu')
+else:
+    print('other')
 EOF
 }
 
-# desktop NAME FILE: EmuTOS's green desktop is on the screen (an ST's
-# green, 0x070, or an STE's, 0x0F0)
-desktop() {
-    local n
-    n=$(( $(count "$1" "$2" 0 238 0) + $(count "$1" "$2" 0 255 0) ))
-    if [ "$n" -gt 50000 ]; then
-        pass "$1: EmuTOS's desktop ($2)"
+# shows NAME FILE WHAT MESSAGE: the screenshot is WHAT
+shows() {
+    local s
+    s=$(screen "$1" "$2")
+    if [ "$s" = "$3" ]; then
+        pass "$1: $4 ($2)"
     else
-        fail "$1" "no desktop in $2.ppm ($n green pixels)"
+        fail "$1" "$4: $2.ppm is \"$s\""
     fi
 }
+question() { shows "$1" "$2" question "the \"?\" disk"; }
+menu_shown() { shows "$1" "$2" menu "the menu"; }
+finder() { shows "$1" "$2" finder "the Finder's desktop"; }
 
 same() {
     if [ -f "$OUT/$1/$2.ppm" ] && [ -f "$OUT/$1/$3.ppm" ] && cmp -s "$OUT/$1/$2.ppm" "$OUT/$1/$3.ppm"; then
@@ -132,7 +188,7 @@ differ() {
 }
 
 # USB HID usages used below.
-F12=0x45 DOWN=0x51 ENTER=0x28 ESC=0x29 POWER=0x66 A=0x04
+F12=0x45 DOWN=0x51 UP=0x52 ENTER=0x28 ESC=0x29 POWER=0x66 LSHIFT=0xe1
 
 # KEY USAGE FRAME: press at FRAME, release two frames later
 key() { printf '%d key %s 1\\n%d key %s 0\\n' "$2" "$1" $(($2 + 2)) "$1"; }
@@ -142,134 +198,186 @@ downs() {
     for ((i = 0; i < $1; i++)); do key $DOWN $(($2 + i * 4)); done
 }
 
-echo "Boot to EmuTOS's desktop, locked to a 60 Hz display"
-# The 1024K EmuTOS is a US one: an NTSC ST, 60 Hz.
-run boot 60 "" '1500 shot a.ppm\n1501 shot b.ppm\n1800 audio\n1801 quit\n'
-check_log boot "ST 60\.0[0-9] Hz, synchronised to the display" "locked to 60 Hz"
-check_log boot "1 TOS image" "EmuTOS found in tos/"
-check_log boot "picture 832x552" "the ST's picture with its borders"
-check_cfg boot hatari.cfg "^szTosImageFileName = .*etos1024k\.img" "a new card's hatari.cfg names EmuTOS"
-desktop boot a
-same boot a b
-no_underruns boot
-every_frame boot
+echo "No ROM: both say what's missing"
+mkdir -p "$OUT/norom_ii" "$OUT/norom_plus"
+ln -s "$OUT/empty" "$OUT/norom_ii/roms"
+ln -s "$OUT/empty" "$OUT/norom_plus/roms"
+run "$II" norom_ii 60 "" '120 shot a.ppm\n121 quit\n'
+check_log norom_ii "No Mac II or Quadra ROM" "the Mac II asks for a ROM"
+menu_shown norom_ii a
+run "$PLUS" norom_plus 60 "" '120 shot a.ppm\n121 quit\n'
+check_log norom_plus "No Mac Plus ROM" "the Mac Plus asks for a ROM"
+menu_shown norom_plus a
+
+if [ "$HAVE_ROMS" -eq 0 ]; then
+    for t in "Mac II boot" "Mac Plus boot" "menus" "machine switching" "web UI requests" \
+             "System disks"; do
+        skip "$t (no BMMAC_ROMS)"
+    done
+    echo
+    echo "$FAILED failed, $SKIPPED skipped (set BMMAC_ROMS to run them)."
+    exit $((FAILED > 0))
+fi
+
+echo
+echo "Mac II and Quadra (Basilisk II)"
+
+echo "Boot the Quadra ROM to the \"?\" disk, locked to a 60 Hz display"
+run "$II" iiboot 60 "" '600 shot a.ppm\n601 shot b.ppm\n900 audio\n901 quit\n'
+check_log iiboot "Quadra 610, 650 and 800 \(F1ACAD13\), 68040, 32 MB" "the Quadra ROM, a 68040, 32 MB"
+check_log iiboot "Mac 60\.15 Hz, synchronised to the display" "locked to the display"
+check_log iiboot "Mac screen 640x480, VDEPTH_8BIT" "a 640x480 screen in 256 colours"
+check_cfg iiboot macii.prefs "^rom roms/.*f1acad13" "macii.prefs names the ROM"
+check_cfg iiboot macii.prefs "^extfs .*shared" "macii.prefs shares the card's shared folder"
+question iiboot a
+same iiboot a b
+every_frame iiboot
+no_underruns iiboot
 
 echo "Starting again from the saved settings"
-mkdir -p "$OUT/boot2"
-cp "$OUT/boot/hatari.cfg" "$OUT/boot2/hatari.cfg"
-run boot2 60 "" '1500 shot a.ppm\n1501 quit\n'
-desktop boot2 a
+mkdir -p "$OUT/iiboot2"
+cp "$OUT/iiboot/macii.prefs" "$OUT/iiboot2/"
+run "$II" iiboot2 60 "" '600 shot a.ppm\n601 quit\n'
+question iiboot2 a
 
 echo "On a 50 Hz display"
-run timer 50 "" '1500 shot a.ppm\n1800 audio\n1801 quit\n'
-check_log timer "timer paced" "a 60 Hz ST on a 50 Hz display is timer paced"
-desktop timer a
-no_underruns timer
-
-echo "Sound at 44.1 and 48 kHz: the keyboard's click"
-# Keys pressed on the desktop click (the YM2149). The ST's 60.04 Hz locked
-# to 60 Hz runs a little fast: the sound must be squeezed to fit, never
-# cut off with the buffer full.
-for rate in 44100 48000; do
-    BMATARIST_SIM_RATE=$rate run sound$rate 60 "" \
-        "$(key $A 1500)$(key $A 1560)$(key $A 1620)3000 audio\n3001 quit\n"
-    line=$(grep "audio written" "$OUT/sound$rate/log.txt" | tail -1)
-    max=$(echo "$line" | sed 's/.*after write max \([0-9]*\).*/\1/')
-    cap=$(grep "sound open" "$OUT/sound$rate/log.txt" | head -1 | sed 's/.*, \([0-9]*\) frames.*/\1/')
-    if [ -n "$max" ] && [ -n "$cap" ] && [ "$max" -le $((cap * 90 / 100)) ]; then
-        pass "sound$rate: the sound buffer never fills ($max of $cap)"
-    else
-        fail sound$rate "the sound buffer filled: $line (capacity $cap)"
-    fi
-    no_underruns sound$rate
-    sound_made sound$rate
-done
-run volume0 60 "volume=0" "$(key $A 1500)$(key $A 1560)1800 audio\n1801 quit\n"
-check_log volume0 "changing samples 0" "volume=0 is silent"
+run "$II" iitimer 50 "" '600 shot a.ppm\n900 audio\n901 quit\n'
+check_log iitimer "timer paced" "the Mac's 60.15 Hz on a 50 Hz display is timer paced"
+question iitimer a
+no_underruns iitimer
 
 echo "Mouse"
-# Moving the mouse moves the ST's pointer; the right button doesn't stop
-# anything.
-run mouse 60 "" '1500 shot before.ppm\n1510 mouse 40 30 0\n1511 mouse 40 30 0\n1512 mouse 40 30 0\n1530 shot after.ppm\n1540 mouse 0 0 2\n1542 mouse 0 0 0\n1560 shot right.ppm\n1561 quit\n'
-differ mouse before after
-desktop mouse right
+run "$II" iimouse 60 "" '600 shot before.ppm\n610 mouse 40 30 0\n611 mouse 40 30 0\n612 mouse 40 30 0\n640 shot after.ppm\n641 quit\n'
+differ iimouse before after
 
-echo "Menu (F12)"
-# Open, Esc closes; the picture comes back as it was.
-run menu 60 "" "1500 shot before.ppm\n$(key $F12 1510)1530 shot menu.ppm\n$(key $ESC 1540)1560 shot after.ppm\n1561 quit\n"
-n=$(count menu menu 255 255 255)
-if [ "$n" -gt 100000 ]; then
-    pass "menu: F12 opens the menu"
-else
-    fail menu "no menu on the screen ($n white pixels)"
-fi
-same menu before after
-run padmenu 60 "" '1500 pad 0 0\n1510 pad 0 0x0100\n1514 pad 0 0\n1530 shot menu.ppm\n1531 quit\n'
-n=$(count padmenu menu 255 255 255)
-if [ "$n" -gt 100000 ]; then
-    pass "padmenu: a gamepad's Home opens the menu"
-else
-    fail padmenu "no menu on the screen ($n white pixels)"
-fi
+echo "Menu (F12), and a gamepad's Home"
+run "$II" iimenu 60 "" "600 shot before.ppm\n$(key $F12 610)630 shot menu.ppm\n$(key $ESC 640)660 shot after.ppm\n661 quit\n"
+menu_shown iimenu menu
+same iimenu before after
+run "$II" iipadmenu 60 "" '600 pad 0 0\n610 pad 0 0x0100\n614 pad 0 0\n630 shot menu.ppm\n631 quit\n'
+menu_shown iipadmenu menu
 
 echo "Settings are saved"
 # Menu, Video (eight down), Show Disk Activity (five down): off.
-run settings 60 "" "$(key $F12 1500)$(downs 8 1510)$(key $ENTER 1550)$(downs 5 1560)$(key $ENTER 1590)$(key $F12 1600)1620 quit\n"
-check_cfg settings bmatarist.cfg "^disk_activity=0" "Video > Show Disk Activity saved to bmatarist.cfg"
+run "$II" iisettings 60 "" "$(key $F12 600)$(downs 8 610)$(key $ENTER 650)$(downs 5 660)$(key $ENTER 690)$(key $F12 700)720 quit\n"
+check_cfg iisettings bmmac.cfg "^disk_activity=0" "Video > Show Disk Activity saved to bmmac.cfg"
 
-echo "Machine: switching to an STE"
-# Menu, Machine (six down), Machine, two down to the STE. Hatari resets
-# the ST and saves the choice in hatari.cfg.
-run machine 60 "" "$(key $F12 1500)$(downs 6 1510)$(key $ENTER 1540)$(key $ENTER 1550)$(downs 2 1560)$(key $ENTER 1570)$(key $ESC 1580)$(key $ESC 1590)3200 shot ste.ppm\n3201 quit\n"
-check_cfg machine hatari.cfg "^nModelType = 2" "the STE saved in hatari.cfg"
-desktop machine ste
+echo "Memory: 64 MB, and the Mac restarts"
+# Menu, Memory (five down), one down from 32 MB, then out.
+run "$II" iimemory 60 "" "$(key $F12 600)$(downs 5 610)$(key $ENTER 640)$(downs 1 650)$(key $ENTER 660)$(key $ESC 670)1300 shot a.ppm\n1301 quit\n"
+check_cfg iimemory macii.prefs "^ramsize 67108864" "64 MB saved in macii.prefs"
+check_log iimemory "68040, 64 MB" "the Mac restarted with 64 MB"
+question iimemory a
 
-echo "Save and load a state"
-# Menu, Save State (two down), slot 1; the pointer moves; menu (it opens on
-# Save State again), Load State (one down), slot 1: the screen is as saved
-# (once the "State saved" note has gone).
-run states 60 "" "1500 shot saved.ppm\n$(key $F12 1510)$(downs 2 1520)$(key $ENTER 1535)$(key $ENTER 1545)1600 mouse 60 40 0\n1601 mouse 60 40 0\n1620 shot moved.ppm\n$(key $F12 1630)$(downs 1 1640)$(key $ENTER 1650)$(key $ENTER 1660)1900 shot loaded.ppm\n1901 quit\n"
-check_log states "Memory state file saved: .*snapshots/state1\.sav" "saved to snapshots/state1.sav"
-check_log states "Memory state file restored" "loaded"
-differ states saved moved
-same states saved loaded
-
-echo "A folder as drive C:"
-mkdir -p "$OUT/gemdos/hd/C"
-echo "hello" > "$OUT/gemdos/hd/C/HELLO.TXT"
-cp "$OUT/boot/hatari.cfg" "$OUT/gemdos/hatari.cfg"
-python3 - "$OUT/gemdos/hatari.cfg" "$OUT/gemdos/hd/C" <<'EOF'
-import sys
-cfg, folder = sys.argv[1], sys.argv[2]
-s = open(cfg).read()
-s = s.replace('bUseHardDiskDirectory = FALSE', 'bUseHardDiskDirectory = TRUE')
-lines = [('szHardDiskDirectory = ' + folder) if l.startswith('szHardDiskDirectory =') else l
-         for l in s.split('\n')]
-open(cfg, 'w').write('\n'.join(lines))
-EOF
-run gemdos 60 "" '1500 shot c.ppm\n1501 quit\n'
-cp "$OUT/boot/a.ppm" "$OUT/gemdos/noc.ppm"
-differ gemdos noc c
-check_log gemdos "GEMDOS HDD emulation, C: <-> " "Hatari's GEMDOS drive C:"
+echo "A disk from the web UI"
+python3 -c "open('$OUT/blank.dsk','wb').write(bytes(819200))"
+run "$II" iistart 60 "" "600 run $OUT/blank.dsk\n900 shot a.ppm\n901 quit\n"
+check_log iistart "Web UI: starting .*blank\.dsk" "starts a disk image"
+check_log iistart "disk .*blank\.dsk, 800 KB" "the Mac restarted with it in the floppy drive"
+check_log iistart "ejected .*blank\.dsk" "and ejects it: it isn't a Mac disk"
 
 echo "Web UI requests"
-run reboot 60 "" '1500 webui reboot\n1560 quit\n'
-check_log reboot "reboot requested" "reboots"
-run coldstart 60 "" '1500 webui coldstart\n1560 quit\n'
-check_log coldstart "Web UI: restart" "restarts the ST"
-python3 -c "open('$OUT/blank.st','wb').write(bytes(737280))"
-run start 60 "" "1500 run $OUT/blank.st\n1600 quit\n"
-check_log start "Web UI: starting .*blank\.st" "starts a floppy image"
-check_cfg start hatari.cfg "^szDiskAFileName = .*blank\.st" "it is in drive A:"
+run "$II" iireboot 60 "" '600 webui reboot\n660 quit\n'
+check_log iireboot "reboot requested" "reboots"
+run "$II" iicoldstart 60 "" '600 webui coldstart\n900 shot a.ppm\n901 quit\n'
+check_log iicoldstart "Web UI: restart" "restarts the Mac"
+question iicoldstart a
+
+echo "Switching to the Mac Plus"
+# Menu, Machine (seven down), Mac Plus, Yes (up from No).
+run "$II" iiswitch 60 "" "$(key $F12 600)$(downs 7 610)$(key $ENTER 640)$(key $ENTER 650)$(key $UP 660)$(key $ENTER 670)700 quit\n"
+check_cfg iiswitch config.txt "^kernel=macplus_2712\.img" "config.txt starts the Mac Plus on the Pi 5"
+check_cfg iiswitch config.txt "^kernel=macplus8-rpi4\.img" "and on the Pi 4"
+check_cfg iiswitch config.txt "^kernel=macplus8-32\.img" "the Pi 3 is left alone"
+check_log iiswitch "reboot requested" "and the Pi reboots"
 
 echo "The power key (Pi 400: Fn+F10) shuts down"
-run powerkey 60 "" "$(key $POWER 1500)1560 quit\n"
-check_log powerkey "Shutting down" "the power key while the ST runs"
-check_log powerkey "power off requested" "the power key powers off"
+run "$II" iipowerkey 60 "" "$(key $POWER 600)660 quit\n"
+check_log iipowerkey "power off requested" "the power key powers off"
+
+if [ -n "${BMMAC_II_DISK:-}" ] && [ -f "$BMMAC_II_DISK" ]; then
+    echo "Mac OS from a hard disk, Shift held (extensions off), to the Finder"
+    mkdir -p "$OUT/iisystem/shared"
+    copy_disk "$BMMAC_II_DISK" "$OUT/iisystem/system.hda"
+    echo "Hello from the SD card" > "$OUT/iisystem/shared/Hello.txt"
+    printf 'disk %s\n' "$OUT/iisystem/system.hda" > "$OUT/iisystem/macii.prefs"
+    run "$II" iisystem 60 "" "1 key $LSHIFT 1\n2400 key $LSHIFT 0\n3600 shot a.ppm\n3601 quit\n"
+    finder iisystem a
+    if [ -d "$OUT/iisystem/shared/.finf" ]; then
+        pass "iisystem: the Mac uses the SD card's shared folder (ExtFS)"
+    else
+        fail iisystem "no .finf in the shared folder: ExtFS wasn't mounted"
+    fi
+else
+    skip "Mac OS from a hard disk (no BMMAC_II_DISK)"
+fi
+
+echo
+echo "Mac Plus (umac)"
+
+echo "Boot the Mac Plus ROM to the \"?\" disk, 4 MB (after its memory test)"
+run "$PLUS" plusboot 60 "" '1800 shot a.ppm\n1801 shot b.ppm\n1900 audio\n1901 quit\n'
+check_log plusboot "Macintosh Plus, 4 MB, ROM roms/.*342-0341-c" "the Plus ROM put together from MAME's two chips"
+check_log plusboot "Mac 60\.15 Hz, synchronised to the display" "locked to the display"
+check_cfg plusboot bmmac.cfg "^plus_rom=roms/" "bmmac.cfg names the ROM"
+question plusboot a
+same plusboot a b
+every_frame plusboot
+no_underruns plusboot
+sound_made plusboot
+
+echo "A Mac 128K's memory"
+run "$PLUS" plus128 60 "plus_ram=128" '300 shot a.ppm\n301 quit\n'
+check_log plus128 "Macintosh Plus, 128K" "128K"
+question plus128 a
+
+echo "Mouse"
+run "$PLUS" plusmouse 60 "plus_ram=512" '900 shot before.ppm\n910 mouse 40 30 0\n911 mouse 40 30 0\n912 mouse 40 30 0\n940 shot after.ppm\n941 quit\n'
+differ plusmouse before after
+
+echo "Menu (F12)"
+run "$PLUS" plusmenu 60 "plus_ram=512" "900 shot before.ppm\n$(key $F12 910)930 shot menu.ppm\n$(key $ESC 940)960 shot after.ppm\n961 quit\n"
+menu_shown plusmenu menu
+question plusmenu after
+
+echo "A blank disk: read, and ejected (it isn't a Mac disk)"
+cp "$OUT/blank.dsk" "$OUT/plusdisk.dsk"
+run "$PLUS" plusdisk 60 "plus_ram=512 plus_disk=$OUT/plusdisk.dsk" '900 shot a.ppm\n901 quit\n'
+check_log plusdisk "disk .*plusdisk\.dsk, 800 KB" "the disk is opened"
+check_log plusdisk "the Mac ejected its disk" "the Mac reads it and ejects it"
+question plusdisk a
+
+echo "Memory: 1 MB from the menu"
+# Menu, Memory (three down), two up from 4 MB.
+run "$PLUS" plusmemory 60 "" "$(key $F12 600)$(downs 3 610)$(key $ENTER 630)$(key $UP 640)$(key $UP 644)$(key $ENTER 650)900 quit\n"
+check_cfg plusmemory bmmac.cfg "^plus_ram=1024" "1 MB saved in bmmac.cfg"
+check_log plusmemory "Macintosh Plus, 1 MB" "the Mac restarted with 1 MB"
+
+echo "Switching to the Mac II"
+# Menu, Machine (five down), Mac II and Quadra (one down), Yes.
+run "$PLUS" plusswitch 60 "" "$(key $F12 600)$(downs 5 610)$(key $ENTER 640)$(downs 1 650)$(key $ENTER 660)$(key $UP 670)$(key $ENTER 680)700 quit\n"
+check_cfg plusswitch config.txt "^kernel=macii_2712\.img" "config.txt starts the Mac II on the Pi 5"
+check_cfg plusswitch config.txt "^kernel=macii8-rpi4\.img" "and on the Pi 4"
+check_log plusswitch "reboot requested" "and the Pi reboots"
+
+echo "Web UI: a disk image"
+run "$PLUS" plusstart 60 "" "900 run $OUT/plusdisk.dsk\n1000 quit\n"
+check_cfg plusstart bmmac.cfg "^plus_disk=.*plusdisk\.dsk" "the disk is the Mac's"
+check_log plusstart "disk .*plusdisk\.dsk" "the Mac restarted with it"
+
+if [ -n "${BMMAC_PLUS_DISK:-}" ] && [ -f "$BMMAC_PLUS_DISK" ]; then
+    echo "System from a floppy, to the Finder"
+    mkdir -p "$OUT/plussystem"
+    copy_disk "$BMMAC_PLUS_DISK" "$OUT/plussystem/system.dsk"
+    run "$PLUS" plussystem 60 "plus_disk=$OUT/plussystem/system.dsk" '2400 shot a.ppm\n2401 quit\n'
+    finder plussystem a
+else
+    skip "System from a floppy (no BMMAC_PLUS_DISK)"
+fi
 
 echo
 if [ $FAILED -eq 0 ]; then
-    echo "All tests passed."
+    echo "All tests passed ($SKIPPED skipped)."
 else
     echo "$FAILED test(s) failed."
 fi
