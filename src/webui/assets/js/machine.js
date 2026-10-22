@@ -25,10 +25,10 @@ export async function loadMachine() {
   }
 }
 
-// Machine name, e.g. "Atari STE".
+// Machine name, e.g. "Macintosh Plus, 4 MB".
 export const machineName = () => current.name;
 
-// The part before any comma (the whole name, for the ST).
+// The part before any comma ("Macintosh Plus").
 export const machineShortName = () => current.name.split(",")[0] || "machine";
 
 // Name for display.

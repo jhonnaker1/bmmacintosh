@@ -97,7 +97,7 @@
   <button id="sound">Sound: off</button>
 </div>
 <div id="status">Connecting...</div>
-<div id="help">Type straight into the screen once it has focus: the keys go to the ST where they are on its keyboard (F11 is Help, End is Undo). F12 opens the menu: floppy and hard disks, saved states, the machine and TOS. Click the screen to use the mouse as the ST's (Esc lets it go). A gamepad works as the joystick (A fire, X Space, Y Return, Home menu).</div>
+<div id="help">Type straight into the screen once it has focus: the keys go to the Mac (Alt is Command, the Windows key Option). F12 opens the menu: the disks, the ROM, the memory and the machine. Click the screen to use the mouse as the Mac's (Esc lets it go). A gamepad moves the mouse (A clicks, X Space, Y Return, Home menu).</div>
 
 <script>
 "use strict";
@@ -167,7 +167,7 @@ document.querySelectorAll("button[data-key]").forEach((b) => {
 
 // ---- Mouse ----
 // Clicking the screen captures the mouse (Esc lets it go): its movements
-// are the ST mouse's, sent at most once a frame.
+// are the Mac mouse's, sent at most once a frame.
 let mouseDx = 0, mouseDy = 0, mouseButtons = 0, mouseDirty = false;
 const locked = () => document.pointerLockElement === canvas;
 canvas.addEventListener("click", () => {

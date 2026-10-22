@@ -1,13 +1,14 @@
 # Raspberry Pi 4 B and Pi 400
 
-BMMacintosh runs on the Pi 4 B and Pi 400 as a 64-bit kernel,
-`kernel8-rpi4.img`. The emulator, menus, USB keyboards, mice and gamepads,
+BMMacintosh runs on the Pi 4 B and Pi 400 as two 64-bit kernels,
+`macii8-rpi4.img` (the Mac II and Quadra) and `macplus8-rpi4.img` (the Mac
+Plus). The emulator, menus, USB keyboards, mice and gamepads,
 networking and the web UI work as on the Pi 3.
 
 Pi 4 support comes from [BMA800XL](https://github.com/aminch/bma800xl)
 1.1.0, by way of [BMCoco](https://github.com/jhonnaker1/bmcoco).
 BMA800XL's picture is 8-bit with a palette; BMCoco's and BMMacintosh's are
-RGB565 (BMMacintosh converts Hatari's 32-bit picture as it copies it), so the
+RGB565 (BMMacintosh converts the Mac's screen as it copies it), so the
 display code (`src/av/video.cpp`, `src/av/scaler.cpp`) takes RGB565
 instead. The rest is BMA800XL's.
 
@@ -27,13 +28,13 @@ The emulator itself (`src/port/`) is the same on every board.
 
 BMA800XL has its own driver for the Pi 4's display hardware
 (`src/kms/pi4/`). It takes over the HDMI port in use (HDMI0 if both are),
-shows the ST's picture through the HVS, the Pi's hardware scaler, and can
-run the display at exactly the ST's frame rate. It is chosen with
+shows the Mac's screen through the HVS, the Pi's hardware scaler, and can
+run the display at exactly the Mac's frame rate. It is chosen with
 `video_driver` in `cmdline.txt`:
 
 | `video_driver` | What it does |
 |---|---|
-| `kms` (default) | As `hvs`, and also sets the video mode so the display runs at the ST's rate: 50.05 Hz (PAL), 60.04 Hz (NTSC) or 71.2 Hz (the monochrome monitor), again whenever that changes. This works for 720p and 1080p when the display lists the 60 Hz mode. |
+| `kms` (default) | As `hvs`, and also sets the video mode so the display runs at the Mac's rate, 60.15 Hz. This works for 720p and 1080p when the display lists the 60 Hz mode. |
 | `hvs` | Keeps the mode set in `config.txt`. Use it for a TV that goes blank for a while when the refresh rate changes. |
 | `firmware` | The firmware's framebuffer, with the picture scaled by the ARM. Use it if the others give trouble. |
 

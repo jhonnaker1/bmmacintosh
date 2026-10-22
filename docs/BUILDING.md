@@ -47,10 +47,12 @@ or, in an existing clone, `git submodule update --init --recursive`.
 ```
 
 builds everything from clean and stages the boot partition in
-`build/sdcard`, with a kernel for each board: `kernel8-32.img` for the Pi 3
-and Pi Zero 2 W, `kernel7.img` for the Pi 2, `kernel.img` for the Pi Zero
-and Zero W, `kernel8-rpi4.img` (with `armstub8-rpi4.bin`) for the Pi 4 B
-and Pi 400, and `kernel_2712.img` for the Pi 5, Pi 500 and Pi 500+.
+`build/sdcard`, with the kernels for each board: the Mac Plus's
+(`macplus*.img`) for every board, `macplus8-32.img` for the Pi 3 and Pi
+Zero 2 W, `macplus7.img` for the Pi 2, `macplus.img` for the Pi Zero and
+Zero W, and for the Pi 4 B and Pi 400 (with `armstub8-rpi4.bin`) and the Pi
+5, Pi 500 and Pi 500+ the Mac II's too: `macplus8-rpi4.img` and
+`macii8-rpi4.img`, `macplus_2712.img` and `macii_2712.img`.
 `./build_sdcard.sh pi3`, `./build_sdcard.sh pi2`, `./build_sdcard.sh pi0`,
 `./build_sdcard.sh pi4` or `./build_sdcard.sh pi5` builds just one, and
 `./build_sdcard.sh pi4 pi5` several. Copy the contents of that folder to the root of a FAT32
@@ -61,7 +63,7 @@ run first, and the build stops if any of them fails; `--skip-tests` leaves
 them out.
 
 While developing, `./build_sdcard.sh --skip-patches` keeps the third party
-libraries already built and only rebuilds the kernel, which takes seconds.
+libraries already built and only rebuilds the kernels, which takes seconds.
 The libraries are built for one board at a time, so without a board it
 rebuilds the kernel for the board built last; a board they aren't built for
 is built from clean. With
@@ -75,56 +77,65 @@ rebooted from there, without touching the SD card.
    and resets Circle to its pinned revision.
 2. `./make_all.sh [pi0|pi2|pi3|pi4|pi5] [--skip-patches]` applies `src/patches/` to
    Circle, builds circle-stdlib (Circle and newlib) and the Circle addons
-   for one board (pi3 if none is given), then the kernel: `kernel8-32.img`
-   for pi3, `kernel7.img` for pi2, `kernel.img` for pi0 (Circle's Raspberry
-   Pi 1), `kernel8-rpi4.img` (64-bit) for pi4,
-   which also builds Circle's `armstub8-rpi4.bin`, `kernel_2712.img`
-   (64-bit) for pi5. It only needs running again after
+   for one board (pi3 if none is given), then the board's kernels:
+   `macplus8-32.img` for pi3, `macplus7.img` for pi2, `macplus.img` for pi0
+   (Circle's Raspberry Pi 1), `macplus8-rpi4.img` and `macii8-rpi4.img`
+   (64-bit) for pi4, which also builds Circle's `armstub8-rpi4.bin`,
+   `macplus_2712.img` and `macii_2712.img` (64-bit) for pi5. It only needs running again after
    `clean_all.sh` or a change to the patches or circle-stdlib. To change
    board, run `clean_all.sh` first (make_all.sh refuses otherwise).
-3. `source get_gnu_toolchain.sh && make` rebuilds just the kernel (for the
-   Pi 4 and 5: `BMMAC_AARCH=64 source get_gnu_toolchain.sh && make`).
+3. `source get_gnu_toolchain.sh && make` rebuilds just the board's kernels
+   (for the Pi 4 and 5: `BMMAC_AARCH=64 source get_gnu_toolchain.sh &&
+   make`); `make EMU=ii` or `make EMU=plus` one of them.
 4. `./make_wifi_firmware.sh DIR` puts the Wi-Fi firmware in `DIR/firmware`
    (`build_sdcard.sh` does this).
 
 The Pi 3 kernel also runs on the Pi Zero 2 W. `config.txt` has a section
-per board that picks its kernel. The Pi Zero has one core, so its kernel
+per board that picks its kernel; the menu's *Machine* changes the `[pi4]`
+and `[pi5]` ones. The Pi Zero has one core, so its kernel
 runs the emulator on core 0 and looks after USB between frames, where the
 other boards use core 1 for the emulator. See [PI4.md](PI4.md) and [PI5.md](PI5.md)
 for how the Pi 4 and 5 builds differ.
 
 ## Testing on a PC
 
-`tools/hostsim` builds the emulator port (Hatari plus `src/port/`) for the
-PC, with a simulated display, sound and input in place of the Raspberry Pi.
-It runs scripted tests, booting EmuTOS (fetched as for the SD card) to its
-desktop: the display lock and timer pacing, the sound at 44.1 and 48 kHz,
-the keyboard and mouse, the menu, saved settings and states, switching
-machines, a folder as drive C:, web UI requests and the power key.
+`tools/hostsim` builds the two emulator ports (Basilisk II and umac, with
+`src/port/`) for the PC, `build/macii_sim` and `build/macplus_sim`, with a
+simulated display, sound and input in place of the Raspberry Pi. Its
+scripted tests need Mac ROMs, which aren't free: point `BMMAC_ROMS` at a
+folder with yours (MAME's `macqd800.zip` and `macplus.zip`, or the ROM
+files). Each Mac then boots its ROM to the "?" disk, and the tests check
+the display lock and timer pacing, the sound, the mouse, the menu, saved
+settings, the memory, switching Macs, web UI requests and the power key.
+With System disks too (`BMMAC_II_DISK`, a raw Mac OS 8.1 hard disk, and
+`BMMAC_PLUS_DISK`, an 800K System floppy) each Mac starts from its disk to
+the Finder, the Mac II with the card's shared folder on its desktop.
 
 ```
-tools/hostsim/run_tests.sh
+BMMAC_ROMS=~/mame/roms tools/hostsim/run_tests.sh
 ```
 
-Screenshots (`.ppm`) are written to `tools/hostsim/out/`.
+Without `BMMAC_ROMS` only the tests that need no ROM run (and the rest are
+skipped), as on GitHub's build. Screenshots (`.ppm`) are written to
+`tools/hostsim/out/`.
 
 To play with the port on the PC, run it live:
 
 ```
-tools/hostsim/live.sh
+tools/hostsim/live.sh ii      (or plus)
 ```
 
 and open http://127.0.0.1:8064/ in a browser: the screen, keyboard, mouse,
 sound and gamepads (through the browser's Gamepad API) are in the page. The
-simulator's SD card is `tools/hostsim/out/live`, set up as the Pi's. This
-runs BMMacintosh's port and Hatari on the PC, not the Pi kernel (no emulator
-shows the Pi's VideoCore display). The web page is served on 127.0.0.1
-only.
+simulator's SD card is `tools/hostsim/out/live`, set up as the Pi's: put
+your ROMs in its `roms` folder. This runs BMMacintosh's port and the
+emulators on the PC, not the Pi kernel. The web page is served on
+127.0.0.1 only.
 
 The simulator can also be driven by a script of key presses, mouse moves
 and screenshots; see the top of `tools/hostsim/host_sim.c` for the
 commands. [SIMULATOR.md](SIMULATOR.md) has more: setting it up, debugging
-it with gdb, lldb or strace, and getting a log from the Pi.
+it with gdb or lldb, and getting a log from the Pi.
 
 `tools/pi4scaler` tests the shared Pi 4/5 ARM smooth scaling and CRT shader
 (`src/av/scaler.*`): every pixel is checked against crt-pi worked out in
@@ -159,24 +170,22 @@ with `tools/gen_webui_assets.py` whenever an asset changes.
 | `src/vchiqsound*`            | Sound through the VideoCore (from BMC64)    |
 | `src/options.*`              | `cmdline.txt` options                       |
 | `src/host.h`                 | Interface between kernel and emulator       |
-| `src/port/platform.c`        | Hatari's front end: starting it, TOS images, the frame loop, writing floppies back, web UI requests |
-| `src/port/screen.c`          | Hatari's picture to the display (for its src/sdl/screen.c) |
-| `src/port/audio.c`           | Hatari's sound output, kept in step with the display |
-| `src/port/timing.c`          | Stops Hatari's CPU at each VBL for the frame loop |
-| `src/port/keymap.c`          | USB HID usages to ST scan codes             |
-| `src/port/gui_event.c`       | Keyboard, mouse and gamepads into Hatari    |
-| `src/port/joy_ui.c`          | Gamepads and GPIO joysticks as the ST's joysticks |
-| `src/port/statusbar.c`       | The disk activity light                     |
-| `src/port/microphone.c`      | The Falcon's microphone, which has nothing to record |
+| `src/port/bmmac.h`           | What the two Macs' front ends and the shared one offer each other |
+| `src/port/frontend.c`        | The frame loop: display, pacing, sound, keyboard, mouse and gamepads, web UI requests |
+| `src/port/keymap.c`          | USB HID usages to the Mac's key codes      |
 | `src/port/menu.c`, `osd.c`   | The menu and its on-screen display          |
+| `src/port/font8x16.h`        | The menu's font (the Linux console's)       |
+| `src/port/machine.c`         | Switching Macs: `config.txt`'s `kernel=` lines |
+| `src/port/roms.c`            | Finding the Mac ROMs, in MAME's zips too    |
+| `src/port/ii/`               | Basilisk II's front end: memory and the frame loop (`main_ii.cpp`), video, sound, disks, prefs, clocks, the menu's items, ExtFS, `sysdeps.h` |
+| `src/port/ii/basilisk.mk`    | Which Basilisk II sources are built         |
+| `src/port/plus/`             | umac's front end (`main_plus.c`) and `umac.mk` |
 | `src/port/fswrap.c`          | `stat()` of the SD card's root, which FatFs can't do (`--wrap=stat`) |
-| `src/port/posix_extra.c`     | scandir(), utime(), access(), chmod() for newlib |
-| `src/port/compat/`           | Included before Hatari's files              |
-| `src/port/config.h`          | Hatari's build options                      |
-| `src/port/hatari.mk`         | Which Hatari and zlib sources are built     |
+| `src/port/posix_extra.c`     | rmdir(), utime(), access(), creat() for newlib (ExtFS) |
 | `src/patches/`               | Changes applied to Circle by `make_all.sh`  |
 | `sdcard/`                    | Files for the SD card                       |
-| `third_party/hatari`         | Hatari (submodule)                          |
+| `third_party/macemu`         | Basilisk II (submodule)                     |
+| `third_party/umac`           | umac and Musashi (submodule)                |
 | `third_party/zlib`           | zlib (submodule)                            |
 | `third_party/circle-stdlib`  | Circle and newlib (submodule)               |
 | `src/av/`                    | Shared Pi 4/5 video, ARM scaling / CRT shader and sound |
@@ -185,5 +194,6 @@ with `tools/gen_webui_assets.py` whenever an asset changes.
 | `src/kms/pi4/`               | Pi 4 direct display driver and PHY          |
 | `src/kms/pi5/`               | Pi 5 direct display driver and PHY          |
 | `tools/hostsim`              | PC test harness                             |
+| `tools/mac_media.py`         | ROM files and raw disk images from MAME's   |
 | `tools/pi4scaler`            | PC test of shared Pi 4/5 ARM scaling and CRT rendering |
 | `tools/pi4kms`               | PC test of Pi 4/5 display driver calculations |

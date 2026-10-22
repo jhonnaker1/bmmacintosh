@@ -1,221 +1,156 @@
 # BMMacintosh User Guide
 
-BMMacintosh turns a Raspberry Pi into an Atari ST, STE, Mega ST or Mega STE,
-or (on a Pi 4 or 5) a TT or Falcon. It runs the Hatari emulator on the bare
-hardware, so it starts in a couple of seconds and can be switched off at any
-time.
+BMMacintosh turns a Raspberry Pi into a 68k Macintosh: a Mac II or Quadra
+(a 68040 with an FPU, System 7 to Mac OS 8.1) on a Pi 4 or 5, and a Mac
+Plus on every Pi. It runs the emulators on the bare hardware, so it starts
+in a couple of seconds and can be switched off at any time.
+
+## The two Macs
+
+| | Mac II and Quadra | Mac Plus |
+|---|---|---|
+| Emulator | Basilisk II (kanjitalk755's macemu) | umac (Matt Evans), with Musashi |
+| Kernels | `macii8-rpi4.img`, `macii_2712.img` | `macplus.img`, `macplus7.img`, `macplus8-32.img`, `macplus8-rpi4.img`, `macplus_2712.img` |
+| Pi | 4, 400, 5, 500, 500+ | every Pi |
+| CPU | 68040 with an FPU (or a 68020 or 68030) | 68000, 7.83 MHz |
+| Memory | 8 to 256 MB | 128K to 4 MB |
+| Screen | 640x480, 800x600, 1024x768; black and white to millions of colours (the Monitors control panel) | 512x342, black and white |
+| ROM | a IIci's or a Quadra's (best a Quadra 650's or 800's) | the Mac Plus's (its last) |
+| Disks | hard disks, two floppy drives, a CD-ROM drive, and a folder on the card (*SD Card*) | one disk, a floppy's or a hard disk's |
+| Settings | `macii.prefs` (Basilisk II's own) | `bmmac.cfg` |
+
+Each is a kernel of its own (two 68k CPU cores in one program would
+clash). The Pi's firmware starts the one `config.txt` names. **Machine** in
+the menu switches: it changes the `kernel=` lines of `config.txt`'s `[pi4]`
+and `[pi5]` sections and restarts the Pi. A Pi 4 or 5 starts as a Mac II
+the first time; a Pi Zero, 2 or 3 is always a Mac Plus. Both Macs use the
+same card: the ROMs, the disks, the web UI and BMMacintosh's settings.
 
 ## The SD card
 
 | File or folder   | What it is                                                  |
 |------------------|-------------------------------------------------------------|
-| `kernel8-rpi4.img`, `kernel_2712.img`, `kernel8-32.img`, `kernel7.img`, `kernel.img` | BMMacintosh for the Pi 4 and Pi 400, the Pi 5, 500 and 500+, the Pi 3 and Zero 2 W, the Pi 2, and the Pi Zero and Zero W |
+| `macii*.img`, `macplus*.img` | The kernels (above)                            |
 | `bootcode.bin`, `start.elf`, `fixup.dat`, `start4.elf`, `fixup4.dat`, `armstub8-rpi4.bin`, `*.dtb`, `overlays/` | Raspberry Pi firmware |
-| `config.txt`     | Raspberry Pi firmware settings: the display mode            |
-| `cmdline.txt`    | BMMacintosh's options (see Options)                           |
-| `bmmac.cfg`  | Settings changed in BMMacintosh's menu (written by BMMacintosh) |
-| `hatari.cfg`     | Hatari's settings: the machine, TOS, memory, the disks in the drives, joysticks (written by Hatari when the menu changes them) |
-| `hatari.nvram`   | The TT's and Falcon's NVRAM (written by Hatari)              |
-| `tos/`           | TOS images: EmuTOS, and your own (see TOS)                  |
-| `disks/`         | For your floppy images (any folder works)                   |
-| `hd/`            | For a folder that is the ST's hard disk, and hard disk images |
-| `snapshots/`     | Saved states                                                |
+| `config.txt`     | Raspberry Pi firmware settings: the kernel each board starts, the display mode |
+| `cmdline.txt`    | BMMacintosh's options (see Options)                         |
+| `bmmac.cfg`      | Settings changed in BMMacintosh's menu, and the Mac Plus's (written by BMMacintosh) |
+| `macii.prefs`    | The Mac II's settings, in Basilisk II's own format: the ROM, the disks, the memory, the screen (written by BMMacintosh) |
+| `macii.xpram`    | The Mac II's parameter RAM (the Control Panel's settings) |
+| `roms/`          | Your Mac ROMs (see ROMs)                                    |
+| `disks/`         | For your disk images (any folder works)                     |
+| `shared/`        | A folder the Mac II sees as a disk, *SD Card*               |
 | `firmware/`      | Wi-Fi firmware                                              |
 
-A floppy the ST has written to is written back to its image on the card two
-seconds after it stops writing, and BMMacintosh pushes everything out to the
-card every second, so the Pi can be switched off at any time (give it a few
-seconds after saving).
+The Macs read and write their disk images in place, and BMMacintosh pushes
+everything out to the card every second, so the Pi can be switched off at
+any time (give it a second or two after saving, once the disk light is
+off).
 
-## TOS
+## ROMs
 
-The ST's operating system is in the card's `tos` folder. EmuTOS
-(`etos1024k.img`), the free TOS, is there from the start and runs on every
-machine: BMMacintosh starts with it. Atari's own TOS images are copyrighted
-and not included: copy yours into `tos` (any `.img`, `.rom` or `.tos` file
-of a TOS's size) and choose one in the menu: *Machine*, *TOS*. See
-[TOS.txt](TOS.txt) for which TOS suits which machine.
+Apple's ROMs aren't free, so none come with BMMacintosh. Put your own in
+the card's `roms` folder: ROM files, or MAME's zipped ROM sets as they are
+(MAME keeps some ROMs in their chips, two or four, and BMMacintosh puts
+them back together). BMMacintosh tells ROMs by their contents, not their
+names. [ROMS.txt](ROMS.txt) lists which ones each Mac takes. *ROM* in the
+menu chooses between the ones found; without a ROM, the Mac says what's
+missing (and F12 still opens the menu, to switch Macs).
 
-EmuTOS's 1024K version is a US one: it runs the ST at 60 Hz (NTSC). Its
-desktop's *Options* menu sets its language and keyboard.
+## Disks
 
-## Floppy disks
+The Mac starts from a disk with a System folder; without one it shows a
+flashing "?" disk. System software isn't free either: use your own disk
+images. MAME's hard disks (CHD files) need making raw first: see
+[ROMS.txt](ROMS.txt).
 
-*Floppy Disks* in the menu: *Drive A:* (or *B:*), *Insert a Disk...*, and
-choose an image. `.st`, `.msa`, `.dim`, `.stx` (Pasti) and `.scp` images
-work, also zipped (`.zip`) or gzipped (`.gz`). The ST sees the disk change
-as when a real disk is swapped; to start from it, choose *Restart* in the
-menu (as switching the ST off and on). From the web UI, clicking a floppy
-image does both.
+**Mac II.** *Hard Disks* in the menu adds hard disk images (raw, or with an
+Apple partition map, up to 2 GB): the Mac starts from the first. They
+change when the Mac restarts (*Restart the Mac*). *Insert a Floppy Disk*
+puts a floppy image (400K, 800K, 1.4 MB, raw or DiskCopy 4.2) in one of
+the two floppy drives while the Mac runs, *Insert a CD-ROM* an `.iso` or
+`.toast` image in the CD-ROM drive; the Mac ejects them (Command-E, or
+dragging them to the Trash). *Shared Folder* makes the card's `shared`
+folder a disk on the Mac's desktop, *SD Card*: files copied into it (from
+a PC, or the web UI) are the Mac's, and the other way round. The Mac's
+files keep their type and creator, and their resource forks, in `.finf`
+and `.rsrc` folders next to them; characters FAT can't have in a name are
+written `%XX` on the card.
 
-Disks the ST writes to are written back to their image (`.st`, `.msa` and
-`.dim`; the others when they are ejected, as Hatari does). *Write
-Protection* makes every disk read only (*On*) or follows the image file's
-own read only flag (*Automatic*).
+**Mac Plus.** *Disk* in the menu chooses its disk (a raw floppy image, or
+a hard disk's HFS volume), and the Mac starts again from it. *No Disk*
+takes it out. When the Mac ejects its disk the drive stays empty until
+the Mac restarts.
 
-*Disk 2 into B: Too*: inserting a game's first disk, `GAME_A.ST` or
-`GAME_1.ST`, also puts `GAME_B.ST` or `GAME_2.ST` in drive B:.
-
-*Fast Floppy Access* makes the floppy controller fast, rather than as slow
-as a real one. A few programs (copy protections) need the real speed.
-
-## Hard disks
-
-*Hard Disks* in the menu:
-
-- **Folder as a Drive (GEMDOS)**: a folder on the card becomes the ST's
-  drive C:. The ST reads and writes the files in it as they are, so files
-  copied to the folder (from a computer, or the web UI) are on the ST's
-  drive, and the other way round. Programs in its `AUTO` folder run when
-  the ST starts. *Start from the Hard Disk* makes it the boot drive.
-- **ACSI Hard Disk Image** (the ST's own hard disk interface) and **IDE
-  Hard Disk Image** (the Falcon's): a hard disk image file, partitioned and
-  formatted by the ST's own hard disk driver (AHDI, HDDRIVER and the like)
-  or by EmuTOS, which reads them directly.
-
-Changing a hard disk restarts the ST.
-
-## Saved states
-
-*Save State* keeps the whole machine (its memory, chips and CPU, and the
-disks in its drives) in one of four slots, in the card's `snapshots`
-folder; *Load State* brings it back exactly as it was. A state is for the
-same BMMacintosh version and machine.
+**Extensions.** Hold Shift while Mac OS starts to start it without its
+extensions, as on a real Mac: the way past an extension that stops it.
+Mac OS 8.1 from MAME's `macos81.chd`, for one, stops at its A/ROSE
+extension otherwise.
 
 ## The menu
 
 **F12** (or a gamepad's Home, or Select and Start together) opens the menu,
-and the ST stops while it's open. The arrow keys (or the D-pad) move,
+and the Mac stops while it's open. The arrow keys (or the D-pad) move,
 **Enter** (or A) chooses, **Esc** (or B) goes back, and F12 again closes it.
 
 | Item          | What it has |
 |---------------|-------------|
-| Floppy Disks  | The two drives: insert, eject, write protection |
-| Hard Disks    | A folder as drive C:, ACSI and IDE hard disk images |
-| Save State, Load State | Four slots |
-| Reset         | The ST's reset button: TOS starts again, memory kept |
-| Restart       | Switching the ST off and on |
-| Machine       | The machine, TOS, memory, TT-RAM, monitor, blitter, CPU speed, cycle exact CPU, fast boot |
-| Joysticks     | What is in the ST's joystick and mouse ports |
+| Insert a Floppy Disk, Insert a CD-ROM | Mac II: a disk into an empty drive |
+| Hard Disks    | Mac II: adding and removing hard disk images |
+| Shared Folder | Mac II: the card's `shared` folder as a disk |
+| Disk, No Disk | Mac Plus: its disk |
+| ROM           | The ROMs found that this Mac takes |
+| Memory        | The Mac's memory (it restarts) |
+| Restart the Mac | Switching the Mac off and on |
+| Machine       | The Mac Plus or the Mac II (the Pi restarts) |
 | Video         | Screen size, frame lock, CRT effect, smooth scaling, disk activity |
 | Sound         | Volume, HDMI or the headphone jack |
 | Network       | Ethernet or Wi-Fi, the web UI |
-| About         | Versions, the machine, the display, how fast the emulation runs |
+| About         | Versions, the machine, the display |
 
-The menu's last line shows how fast the emulation runs, as a percentage of
-the real machine's speed. Under 100% the Pi can't keep up with the machine
-or program.
-
-The ST's settings (machine, TOS, disks, joysticks) are Hatari's, kept in
-`hatari.cfg`; a change that needs it restarts the ST, as in Hatari's own
-settings dialog. BMMacintosh's own (video, sound, network) are kept in
-`bmmac.cfg`.
+The menu's last line shows how often frames are shown, as a percentage of
+the Mac's 60.15 a second. The Mac II runs as many instructions in a frame
+as the Pi manages; the Mac Plus runs at about a real Plus's speed, and
+under 100% the Pi can't keep up.
 
 ## Keyboard and mouse
 
-Keys go to the ST by where they are on the keyboard, not by what they type:
-the TOS's own keyboard layout decides what each one types, as on an ST with
-that keyboard. So set the language of the TOS (or EmuTOS's *Options*,
-*Desktop configuration*) to match your keyboard.
+Keys go to the Mac by what they are. The keys around the space bar are
+where a Mac's are:
 
-The ST's keys a PC keyboard doesn't have:
-
-| PC key                   | ST key          |
+| PC key                   | Mac key         |
 |--------------------------|-----------------|
-| F11 (or Print Screen)    | Help            |
-| End (or Scroll Lock)     | Undo            |
-| Home                     | ClrHome         |
-| Insert                   | Insert          |
-| Page Up, Page Down       | The keypad's ( and ) |
-| Alt (either)             | Alternate       |
-| The key left of Z (ISO keyboards) | The ST's < > key |
+| Alt (either)             | Command         |
+| Windows key              | Option          |
+| Ctrl                     | Control (Mac II)|
+| Backspace                | Delete          |
+| Delete                   | Forward delete (Mac II) |
+| F11, Insert              | Help (Mac II)   |
+| Num Lock                 | Clear (Mac II)  |
+| Print Screen, Scroll Lock, Pause | F13, F14, F15 (Mac II) |
 
-F12 is BMMacintosh's menu. The power key (a Pi 400's Fn+F10) shuts down.
+On the Mac II, Caps Lock locks, as the Mac's does. F12 is BMMacintosh's menu. The power
+key (a Pi 400's Fn+F10) shuts down.
 
-A USB mouse is the ST's mouse (in its mouse port, unless a joystick is set
-there): the left and right buttons are the ST's, and the middle button
-double clicks.
+The Mac Plus's keyboard has the main keys only: umac's keyboard has no
+arrow keys, keypad, Control or Escape yet, and takes a key every other
+frame, so very fast typing can lose keys.
 
-## Machines and speed
-
-*Machine*, *Machine* chooses an Atari ST, Mega ST, STE, Mega STE, TT or
-Falcon 030; each gets its own CPU (a 68000 at 8 MHz, the TT's 68030 at 32
-MHz with its FPU, the Falcon's 68030 at 16 MHz with its DSP). The TT and the
-Falcon need a Raspberry Pi 4 or 5, and a TOS for them (their own, or
-EmuTOS).
-
-*Memory* is the ST-RAM (512 KB to 14 MB); *TT-RAM* is the TT's and
-Falcon's fast RAM. *Monitor*: the SM124 monochrome monitor (the ST's high
-resolution, 640x400 at 71 Hz), a colour one (low and medium resolution),
-VGA (the TT's and Falcon's) or a TV. *Blitter* adds the blitter to an ST
-(the STE and later always have it). *CPU Speed* runs the CPU at 16 or 32
-MHz, which some programs like (and others don't). *Cycle Exact CPU* times
-every instruction as the real CPU does, which demos and some games need;
-off, the emulation takes less of the Pi. *Fast Boot* skips TOS's memory
-test.
-
-## Joysticks
-
-The ST has two joystick ports: the joystick port, which most games use, and
-the mouse port. *Joysticks* in the menu sets what is in each:
-
-- **USB Gamepad 1** or **2**: the left stick or D-pad moves; A fires, B is
-  the second button (with *B Button Presses Space*, it presses Space, for
-  games that jump with it), the shoulder buttons autofire.
-- **GPIO Joystick 1** or **2**: a joystick wired to the GPIO header (below).
-- **Arrow Keys**: the cursor keys move and right Ctrl fires (hold Shift to
-  type the arrow keys instead).
-
-With a joystick in the mouse port the USB mouse isn't the ST's. By default
-gamepad 1 is in the joystick port and the mouse in the mouse port.
-
-| Gamepad button     | ST                                  |
-|--------------------|-------------------------------------|
-| A                  | Fire                                |
-| B                  | Second button (Space, if chosen)    |
-| L, R               | Autofire                            |
-| X                  | Space                               |
-| Y                  | Return                              |
-| Home, Select+Start | BMMacintosh's menu                    |
-
-**Joysticks on the GPIO header**: set `gpio_joysticks=1` in `cmdline.txt`,
-then reboot. The wiring is BMC64's "GPIO Config 1". The pins are active low
-(each switch connects the pin to ground) and BMMacintosh turns on the Pi's
-pull-ups:
-
-| Signal | Joystick 1 (GPIO) | Joystick 2 (GPIO) |
-|--------|-------------------|-------------------|
-| Up     | 17                | 5                 |
-| Down   | 18                | 6                 |
-| Left   | 27                | 12                |
-| Right  | 22                | 13                |
-| Fire   | 23                | 19                |
-
-In the menus either GPIO joystick moves the cursor and fire chooses, as a
-gamepad's D-pad and A do.
-
-Ground is on pins 6, 9, 14, 20, 25, 30, 34 or 39 of the header. These are
-digital (switch) joysticks, like an Atari-style stick with an adapter; an
-Atari ST's own joysticks are digital too, so one wired to the GPIO header
-through its 9-pin plug works as it is (with its pins on the GPIO pins above
-and its ground on a ground pin).
+A USB mouse is the Mac's mouse (the left button; the Mac has one). A
+gamepad moves the mouse too: the left stick or D-pad moves the pointer,
+A clicks, X types Space and Y Return.
 
 ## Display and timing
 
-An ST shows 50.05 frames a second in PAL, 60.04 in NTSC (as EmuTOS's US
-version sets it) and 71.2 on the monochrome monitor. When the display's
-refresh rate is within 2% of the ST's, each frame is shown on exactly one
-display refresh, which gives perfectly smooth scrolling. Otherwise the
-emulation keeps exact time and frames are shown as they come. `config.txt`
-sets the display to 720p at 60 Hz; for a PAL ST choose `hdmi_mode=19` (50
-Hz). On a Pi 4 or 5 BMMacintosh sets the display to the ST's exact rate
-itself, whichever it is (see [PI4.md](PI4.md)). `vsync=on` or `vsync=off` in
+The Mac shows 60.15 frames a second. When the display's refresh rate is
+within 2% of that, each frame is shown on exactly one display refresh;
+otherwise the emulation keeps exact time. `config.txt` sets the display
+to 720p at 60 Hz, and on a Pi 4 or 5 BMMacintosh sets it to the Mac's
+exact rate itself (see [PI4.md](PI4.md)). `vsync=on` or `vsync=off` in
 `cmdline.txt` (or *Frame Lock* in the menu) forces one or the other.
 
-The picture is the ST's with its borders (Hatari's 832x552: low
-resolution's pixels doubled, medium's lines doubled), so demos that draw in
-the borders are shown, at a monitor's 4:3; the monochrome monitor's 640x400
-and the TT's and Falcon's modes are shown as they are.
+A small red light at the bottom right of the Mac's screen shows the disk
+in use (*Video*, *Show Disk Activity*).
 
 ## Networking and the web UI
 
@@ -250,14 +185,17 @@ The web UI has:
 
 - **Dashboard**: the Pi's model, address, uptime, temperature, power and
   throttling warnings and free space on the card. Buttons to **Restart**
-  the ST (as switching it off and on), **Reboot** BMMacintosh, **Shut
+  the Mac (as switching it off and on), **Reboot** BMMacintosh, **Shut
   Down** (the Pi halts; switch it off, then on again to restart; a Pi 400
   switches itself off, and its power key starts it again), and **Disable
   Web UI** until the next reboot.
 - **Files**: browse the SD card; upload (or drag and drop) files into a
-  folder, download, rename, delete, and create folders. Clicking a floppy
-  image **starts it**: it goes in drive A: and the ST starts again. `cmdline.txt`, `config.txt`,
-  `bmmac.cfg`, `hatari.cfg` and `wpa_supplicant.conf` can be **edited**
+  folder, download, rename, delete, and create folders. Clicking a disk
+  image **starts it**: the Mac starts again from it (on the Mac II a
+  floppy image goes in the floppy drive, a CD-ROM image in the CD-ROM
+  drive, a hard disk image becomes the first hard disk). `cmdline.txt`,
+  `config.txt`, `bmmac.cfg`, `macii.prefs` and `wpa_supplicant.conf` can
+  be **edited**
   in the browser; changes take effect after a reboot, and the previous
   version is kept as `.bak`.
 
@@ -274,20 +212,22 @@ The web UI is open to anyone on your network. To protect it with a PIN, set
 
 The network also sets the Pi's clock, so files saved on the card get the
 right date and time. Set `timezone` to your offset from UTC in minutes, for
-example `timezone=600` for UTC+10. (Hatari gives the ST the Pi's date and time when it starts.)
+example `timezone=600` for UTC+10. The Mac II's clock is the Pi's, in that
+time zone. (umac's Mac Plus doesn't have the Plus's clock chip, so it
+doesn't keep the date.)
 
 ## Options
 
 `cmdline.txt` is a single line of `name=value` options separated by spaces.
 BMMacintosh's menu saves the options it changes to `bmmac.cfg`, one
 `name=value` per line, and those win over `cmdline.txt`. Either file can be
-edited from the web UI. Everything about the emulated machine is in
-Hatari's settings, `hatari.cfg`, which the menu changes.
+edited from the web UI. The Mac II's own settings are in `macii.prefs`,
+which the menu changes.
 
 | Option              | Values                       | Default  | What it does |
 |---------------------|------------------------------|----------|--------------|
 | `aspect`            | number                       | `1.0`    | Multiplies the width of the picture |
-| `disk_activity`     | `0`, `1`                     | `1`      | While a floppy drive turns, show its drive and what the floppy controller does at the bottom left (Video, Show Disk Activity) |
+| `disk_activity`     | `0`, `1`                     | `1`      | The disk light (Video, Show Disk Activity) |
 | `scale`             | 0.1 to 1.0                   | `1.0`    | Height of the picture as a fraction of the screen (Video, Screen Size; less for a TV that cuts off the edges) |
 | `smooth`            | `0`, `1`                     | `0`      | Bilinear filtering instead of sharp pixels |
 | `crt_shader`        | `0`, `1`                     | `0`      | CRT look (scanlines) from BMC64 |
@@ -295,12 +235,13 @@ Hatari's settings, `hatari.cfg`, which the menu changes.
 | `crt_gpu`           | `0`, `1`                     | `1`      | Pi 4 and 5: the 3D GPU draws the smooth and CRT pictures; `0` has the ARM draw them (see [PI4.md](PI4.md)) |
 | `vsync`             | `auto`, `on`, `off`          | `auto`   | Lock frames to the display (see Display and timing) |
 | `resolution`        | `auto`, `1920x1080`, `1280x720` | `auto` | Pi 5 only, with `video_driver=kms`: the display's resolution; `auto` keeps the one the firmware chose (the Pi 5's firmware ignores `hdmi_mode`) |
-| `video_driver`      | `kms`, `hvs`, `firmware`     | `kms`    | Pi 4 and 5: `kms` runs the display at the ST's exact frame rate; `hvs` leaves the mode set in `config.txt`; `firmware` uses the firmware's framebuffer, if the others give trouble (see [PI4.md](PI4.md) and [PI5.md](PI5.md)) |
+| `video_driver`      | `kms`, `hvs`, `firmware`     | `kms`    | Pi 4 and 5: `kms` runs the display at the Mac's exact frame rate; `hvs` leaves the mode set in `config.txt`; `firmware` uses the firmware's framebuffer, if the others give trouble (see [PI4.md](PI4.md) and [PI5.md](PI5.md)) |
 | `sound`             | `0`, `1`                     | `1`      | Sound on or off |
 | `volume`            | 0 to 100                     | `100`    | Sound volume |
 | `audio_out`         | `auto`, `hdmi`, `headphones` | `auto`   | Where the sound goes (`auto`: HDMI, or the headphone jack if the display takes no sound) |
 | `audio_buffer_ms`   | 20 to 500                    | `60`     | Sound buffer; raise it if the sound breaks up |
-| `gpio_joysticks`    | `0`, `1`                     | `0`      | Joysticks on the GPIO header |
+| `plus_rom`, `plus_disk`, `plus_ram` | a path; KB (128 to 4096) | | The Mac Plus's ROM, disk and memory (the menu sets them) |
+| `ii_max_instructions` | number                     | `2000000` | The most instructions the Mac II runs in a frame |
 | `enable_logging`    | `off`, `uart`, `file`        | `off`    | Where the log goes (see Logging) |
 | `network`           | `off`, `ethernet`, `wifi`    | `off`    | Networking (see Networking and the web UI) |
 | `webui`             | `0`, `1`                     | `1`      | Web UI when networking is on |
@@ -311,9 +252,9 @@ Hatari's settings, `hatari.cfg`, which the menu changes.
 ## Logging
 
 BMMacintosh logs what it is doing, which helps when something doesn't work:
-the version, the display and sound set up, the TOS images found, devices
-coming and going, network status, and Hatari's own messages (the TOS
-loaded, disks inserted and written back, anything it didn't like). Choose
+the version, the display and sound set up, the ROMs found and the one
+used, the disk images opened, devices coming and going, network status,
+and the emulators' own messages. Choose
 where it goes with `enable_logging` in `cmdline.txt`:
 
 - **Off** (the default, also when `enable_logging` isn't set): no log.
@@ -329,14 +270,17 @@ where it goes with `enable_logging` in `cmdline.txt`:
 
 ## Troubleshooting
 
-**"Hatari did not start" or "Failed to load TOS image"**: the TOS chosen
-isn't there or doesn't suit the machine. Delete `hatari.cfg` (from the web
-UI, or with the card in a computer) and BMMacintosh starts with EmuTOS again,
-or choose another TOS in the menu.
+**"No Mac II or Quadra ROM" or "No Mac Plus ROM"**: put a ROM that Mac
+takes in the card's `roms` folder ([ROMS.txt](ROMS.txt)), or switch Macs
+(F12, Machine).
 
-**A TOS doesn't start on a machine**: TOS 1.0x is for the ST, 1.06 and 1.62
-for the STE, 3.0x for the TT and 4.0x for the Falcon (see
-[TOS.txt](TOS.txt)). EmuTOS runs on all of them.
+**The flashing "?" disk**: the Mac has no disk it can start from. Choose
+one in the menu (Hard Disks or Disk) and *Restart the Mac*. A Mac II hard
+disk from MAME needs making raw first, and the Mac Plus takes an HFS
+volume, not a whole hard disk with its partition map ([ROMS.txt](ROMS.txt)).
+
+**"Sorry, a system error occurred" while Mac OS starts**: often an
+extension: hold Shift while it starts.
 
 **No picture**: uncomment `hdmi_safe=1` in `config.txt`. If that works, your
 display doesn't accept 720p at 60 Hz; try another `hdmi_mode`.
@@ -344,19 +288,7 @@ display doesn't accept 720p at 60 Hz; try another `hdmi_mode`.
 **No sound over HDMI**: try `hdmi_drive=2` in `config.txt`, or
 `audio_out=hdmi` in `cmdline.txt`.
 
-**Sound breaks up, or the menu's speed line is under 100%**: the Pi can't
-keep up with that machine or program. Turn off *Cycle Exact CPU* (Machine),
-use an ST rather than a TT or Falcon, or a faster Pi (a Pi 4 or 5). For the
-sound alone, raise `audio_buffer_ms` in `cmdline.txt`, e.g. to 100.
-
-**A program seems stuck loading**: watch the bottom left of the screen.
-While a floppy drive's motor turns, a red light shows there (lit while the
-floppy controller works) with the drive and what it is doing, as in `A:
-RS:01 HD:17 TR:17 SE:03 SI:0` (reading a sector, the head on track 17).
-`no disk` in red means the drive is empty.
-
-**The keys type the wrong characters**: the TOS's keyboard layout isn't
-your keyboard's (see Keyboard and mouse).
+**Sound breaks up**: raise `audio_buffer_ms` in `cmdline.txt`, e.g. to 100.
 
 **The TV cuts off the top and bottom of the picture or the menu**: many TVs
 enlarge the picture and crop its edges (overscan). Make *Video*, *Screen
@@ -372,5 +304,3 @@ mode, where it acts as a Switch Pro controller. With the pad connected,
 hold Home (the heart) and D-pad Down for 5 seconds until the LEDs flash; it
 goes back to its own mode and keeps it.
 
-**The joystick doesn't move**: check *Joysticks* in the menu: most games
-read the joystick port, not the mouse port.

@@ -1,8 +1,8 @@
 zlib
 ====
 
-BMMacintosh uses zlib v1.3.2 (https://zlib.net/) for zipped and
-gzipped disk images. Its notice:
+BMMacintosh uses zlib v1.3.2 (https://zlib.net/) to read MAME's zipped
+ROM sets. Its notice:
 
   Copyright notice:
 

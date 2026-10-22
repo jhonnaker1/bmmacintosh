@@ -49,12 +49,12 @@ jobs:
         run: ./check_release_files.sh --release
 
       - name: Zip the SD card files
-        run: cd build/sdcard && zip -r "../../bmmac-${{ github.ref_name }}.zip" .
+        run: cd build/sdcard && zip -r "../../bmmacintosh-${{ github.ref_name }}.zip" .
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v3
         with:
           name: BMMacintosh ${{ github.ref_name }}
-          files: bmmac-${{ github.ref_name }}.zip
+          files: bmmacintosh-${{ github.ref_name }}.zip
           generate_release_notes: false
           draft: true

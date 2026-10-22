@@ -4,25 +4,39 @@ BMMacintosh incorporates software and other materials from third-party projects.
 
 The original copyright, license, and attribution notices supplied with these components are retained with their source where applicable. The notices and licences for code BMMacintosh adapts from other projects are in [`sdcard/licenses/`](../sdcard/licenses/), which becomes the `licenses` folder of the SD card.
 
-## Hatari
+## Basilisk II
 
-BMMacintosh incorporates [Hatari](https://www.hatari-emu.org/), the Atari ST, STE, TT and Falcon emulator by the Hatari team, under the GNU General Public License version 2 or (at your option) any later version. The version used is a commit of its master branch after the 2.6.1 release (the `third_party/hatari` submodule, from `https://github.com/hatari/hatari.git`), which has its user interfaces split out of the emulation core.
+BMMacintosh's Mac II kernels incorporate [Basilisk II](https://basilisk.cebix.net/), the 68k Macintosh emulator by Christian Bauer and others, under the GNU General Public License version 2 or (at your option) any later version. The version used is [kanjitalk755's macemu](https://github.com/kanjitalk755/macemu), the maintained one, at commit `f532be3d` (the `third_party/macemu` submodule), its `BasiliskII/src`.
 
-Hatari's 68000-68060 CPU core comes from WinUAE and UAE, and its floating point emulation from the SoftFloat package (under its own notice, in `src/cpu/softfloat/`). BMMacintosh's menu uses the Atari character set from Hatari's font (`src/gui-sdl/font10x16.h`). BMMacintosh's front end (`src/port/`) has the same functions as Hatari's libretro front end (`src/retro/`), which it follows.
+Its 68040 CPU core (`uae_cpu_2021`, the one Basilisk II's build uses on ARM) is ARAnyM's, from UAE by Bernd Schmidt and others, with its floating point emulation, under the same licence. BMMacintosh's front end (`src/port/ii/`) follows Basilisk II's Unix front end (`src/Unix/`), and `src/port/ii/extfs_ii.cpp` is its `extfs_unix.cpp` changed for the SD card.
 
-Its notice is in [`sdcard/licenses/hatari.txt`](../sdcard/licenses/hatari.txt) and the GNU General Public License version 2 in [`sdcard/licenses/GPL-2.0.txt`](../sdcard/licenses/GPL-2.0.txt).
+Its notice is in [`sdcard/licenses/basilisk2.txt`](../sdcard/licenses/basilisk2.txt) and the GNU General Public License version 2 in [`sdcard/licenses/GPL-2.0.txt`](../sdcard/licenses/GPL-2.0.txt).
 
-## EmuTOS
+## umac and Musashi
 
-The SD card includes [EmuTOS](https://emutos.sourceforge.io/) 1.4 (`tos/etos1024k.img`, from the release on SourceForge, fetched by `make_emutos.sh`), a free TOS, under the GNU General Public License version 2. It is a separate program the emulated ST runs, not part of the kernels. Its licence is [`licenses/emutos.txt`](../sdcard/licenses/) on the card; its source is at https://github.com/emutos/emutos (tag `VERSION_1_4`).
+BMMacintosh's Mac Plus kernels incorporate [umac](https://github.com/evansm7/umac), the Mac 128K, 512K and Plus emulator by Matt Evans (the core of [pico-mac](https://github.com/evansm7/pico-mac)), at commit `b62d3c6e` (the `third_party/umac` submodule), under the MIT licence, with its 68000, [Musashi](https://github.com/kstenerud/Musashi) by Karl Stenerud (umac's copy, its `external/Musashi` submodule at `b3144f12`), under the MIT licence, and Musashi's floating point emulation from the SoftFloat package, Release 2b, by John R. Hauser, under its own notice.
+
+umac's disk driver code comes from Basilisk II: the parts in `src/disc.c` and `include/b2_macos_util.h` are under the GNU General Public License version 2 or later, as Basilisk II is; its replacement disk driver (`macsrc/sonydrv.S`, built into `include/sonydrv.h`) is Basilisk II's with Matt Evans's changes, marked "GPLv2". BMMacintosh doesn't build umac's SDL front end or its keyboard tables (`include/keymap.h`, `keymap_sdl.h`), which come from Mini vMac (GPL version 2 only, which BMMacintosh's GPL version 3 can't take): its keyboard code is its own (`src/port/keymap.c`, from Apple's published key codes).
+
+Mini vMac, the other compact Mac emulator, isn't used for the same reason.
+
+The notices are in [`sdcard/licenses/umac.txt`](../sdcard/licenses/umac.txt) and [`sdcard/licenses/musashi.txt`](../sdcard/licenses/musashi.txt).
 
 ## zlib
 
-BMMacintosh incorporates [zlib](https://zlib.net/) 1.3.2 (the `third_party/zlib` submodule), for zipped and gzipped disk images, under the zlib licence. Its notice is in [`sdcard/licenses/zlib.txt`](../sdcard/licenses/zlib.txt).
+BMMacintosh incorporates [zlib](https://zlib.net/) 1.3.2 (the `third_party/zlib` submodule), to read MAME's zipped ROM sets, under the zlib licence. Its notice is in [`sdcard/licenses/zlib.txt`](../sdcard/licenses/zlib.txt).
+
+## The menu's font
+
+The menu is drawn with the Linux console's lat1-16 font (`src/port/font8x16.h`), from the kbd package by Andries Brouwer, Alexey Gladkov and Paul Gortmaker, under the GNU General Public License version 2 or later, as Circle has it (`lib/font8x16.cpp`).
+
+## BMAtariST
+
+BMMacintosh is based on [BMAtariST](https://github.com/jhonnaker1/bmatarist), the bare metal Atari ST emulator for the Raspberry Pi, under the GNU General Public License version 3. Its kernel, display, sound, network, web UI, menu and test harness code is used here.
 
 ## BMApple2
 
-BMMacintosh is based on [BMApple2](https://github.com/jhonnaker1/bmapple2), the bare metal Apple II emulator for the Raspberry Pi, under the GNU General Public License version 3. Its kernel, display, sound, network, web UI, menu and test harness code is used here.
+BMAtariST, and so BMMacintosh, is based on [BMApple2](https://github.com/jhonnaker1/bmapple2), the bare metal Apple II emulator for the Raspberry Pi, under the GNU General Public License version 3. Its kernel, display, sound, network, web UI, menu and test harness code is used here.
 
 ## BMCoco
 
@@ -88,7 +102,7 @@ The Pi 5's files (`brcmfmac43455-sdio.raspberrypi,5-model-b.*`) are copies of th
 
 ## BMRetroSys
 
-[BMRetroSys](https://github.com/drunkeneye/BMRetroSys), a bare metal emulator collection for the Raspberry Pi 4 and 5 that also runs Hatari, was a reference for the pitfalls of running Hatari on Circle (restarting the CPU core after a reset, what newlib lacks). No code from it is used.
+[BMRetroSys](https://github.com/drunkeneye/BMRetroSys), a bare metal emulator collection for the Raspberry Pi 4 and 5 that also runs Basilisk II, was a reference for the pitfalls of running Basilisk II on Circle (what newlib lacks, its tick hook). No code from it is used.
 
 ## Other Third-Party Components
 

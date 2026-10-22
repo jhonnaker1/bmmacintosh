@@ -1,9 +1,9 @@
-/* An Atari ST theme: GEM's black on white (and its menu bar) for the name,
-   on the dark glass of a switched-off monitor, with the ST's green desktop
-   for what is chosen, and the first colours of the ST's default low
-   resolution palette (white, red, green, blue) as a colour bar. The colour
-   names are the ones the page has always used (the JS and HTML refer to
-   them); they no longer describe the colours. */
+/* A Macintosh theme: the Mac's black on white (and its menu bar) for the
+   name, on the dark glass of a switched-off monitor, with the six colours
+   of the Apple logo of the time (green, yellow, orange, red, purple, blue)
+   for what is chosen and as a colour bar. The colour names are the ones
+   the page has always used (the JS and HTML refer to them); they no longer
+   describe the colours. */
 :root {
   color-scheme: dark;
   --bg: #0b0c0b;
@@ -19,34 +19,36 @@
   --key: #1e221e;
   --key-hi: #282d28;
   --key-edge: #050605;
-  /* The ST's default palette: $777 white, $700 red, $070 green, $007 blue,
-     and GEM's ink */
-  --st-white: #eeeeee;
-  --st-red: #ee2222;
-  --st-green: #22dd22;
-  --st-blue: #3a6cff;
-  --st-yellow: #eedd22;
-  --st-ink: #000000;
-  --gold: var(--st-green);
-  --gold-hi: #7cf28e;
-  --gold-lo: #16a816;
-  --orange: var(--st-red);
-  --rust: #c81818;
-  --blue: var(--st-green);
-  --cyan: var(--st-blue);
-  --purple: var(--st-red);
-  --pink: var(--st-blue);
-  --green: var(--st-green);
-  --amber: var(--st-yellow);
-  --red: var(--st-red);
-  --stripe-1: var(--st-white);
-  --stripe-2: var(--st-red);
-  --stripe-3: var(--st-green);
-  --stripe-4: var(--st-blue);
-  /* The colour bar: the ST's first palette colours */
+  /* The Apple logo's six colours, and the Mac's ink */
+  --mac-green: #61bb46;
+  --mac-yellow: #fdb827;
+  --mac-orange: #f5821f;
+  --mac-red: #e03a3e;
+  --mac-purple: #963d97;
+  --mac-blue: #009ddc;
+  --mac-white: #eeeeee;
+  --mac-ink: #000000;
+  --gold: var(--mac-green);
+  --gold-hi: #8fd477;
+  --gold-lo: #3f8f2c;
+  --orange: var(--mac-orange);
+  --rust: #c2611a;
+  --blue: var(--mac-green);
+  --cyan: var(--mac-blue);
+  --purple: var(--mac-purple);
+  --pink: var(--mac-blue);
+  --green: var(--mac-green);
+  --amber: var(--mac-yellow);
+  --red: var(--mac-red);
+  --stripe-1: var(--mac-green);
+  --stripe-2: var(--mac-yellow);
+  --stripe-3: var(--mac-red);
+  --stripe-4: var(--mac-blue);
+  /* The colour bar: the Apple logo's stripes */
   --colour-bar: linear-gradient(90deg,
-    var(--st-white) 0 25%, var(--st-red) 25% 50%,
-    var(--st-green) 50% 75%, var(--st-blue) 75% 100%);
+    var(--mac-green) 0 16.66%, var(--mac-yellow) 16.66% 33.33%,
+    var(--mac-orange) 33.33% 50%, var(--mac-red) 50% 66.66%,
+    var(--mac-purple) 66.66% 83.33%, var(--mac-blue) 83.33% 100%);
   --grad: linear-gradient(180deg, var(--gold-hi), var(--gold-lo));
   --display: "Helvetica Neue", "Arial Black", "Arial Bold", Arial, sans-serif;
   --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
@@ -338,9 +340,9 @@ a:hover { text-decoration: underline; }
 .tile-s { font-size: 12px; line-height: 1.3; opacity: 0.8; text-wrap: balance; }
 /* Green like a green screen monitor, orange from the rainbow logo, red
    for switching off */
-.tile-blue, .tile-purple { --cap: var(--st-green); --legend: var(--st-ink); }
-.tile-pink { --cap: var(--st-red); --legend: var(--cream); }
-.tile-red { --cap: var(--st-red); --legend: var(--cream); }
+.tile-blue, .tile-purple { --cap: var(--mac-green); --legend: var(--mac-ink); }
+.tile-pink { --cap: var(--mac-red); --legend: var(--cream); }
+.tile-red { --cap: var(--mac-red); --legend: var(--cream); }
 .tile-amber { --cap: var(--key-hi); --legend: var(--cream); }
 /* No empty gap under the tiles until there is a message to show. */
 .qa-card .msg:empty { display: none; }
@@ -500,9 +502,9 @@ body.modal-open { overflow: hidden; }
 .ed-foot .ed-msg { flex: 1; margin: 0; min-width: 160px; }
 .ed-btns { display: flex; gap: 8px; margin-left: auto; }
 
-.btn-primary { background: var(--grad); color: var(--st-ink); font-weight: 700; }
+.btn-primary { background: var(--grad); color: var(--mac-ink); font-weight: 700; }
 .btn-primary:hover { border-color: rgba(0, 0, 0, 0.5); filter: brightness(1.08); }
-.btn-reboot { background: linear-gradient(180deg, rgba(255, 255, 255, 0.12), transparent 50%), var(--st-red); color: var(--cream); font-weight: 700; }
+.btn-reboot { background: linear-gradient(180deg, rgba(255, 255, 255, 0.12), transparent 50%), var(--mac-red); color: var(--cream); font-weight: 700; }
 .btn-reboot:hover { border-color: rgba(0, 0, 0, 0.5); filter: brightness(1.08); }
 
 /* ---------- footer ---------- */
@@ -554,14 +556,14 @@ body.modal-open { overflow: hidden; }
 
 /* ---------- name ---------- */
 
-/* BMMacintosh's name as GEM shows a title: black letters on white, with the
+/* BMMacintosh's name as the Mac shows a title: black letters on white, with the
    colour bar under it. */
 .sidebar-name, .welcome-text {
   font-family: var(--mono);
   font-weight: 800;
   text-transform: uppercase;
-  color: var(--st-ink);
-  background: var(--st-white);
+  color: var(--mac-ink);
+  background: var(--mac-white);
   display: inline-block;
   padding: 0.12em 0.4em;
   border-radius: 3px;

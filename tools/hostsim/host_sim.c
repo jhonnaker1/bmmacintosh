@@ -2,7 +2,9 @@
  * host_sim.c - runs the BMMacintosh emulator port on a PC for testing.
  *
  * Implements src/host.h with a simulated display, sound output and input,
- * so KEGS and the port in src/port/ can be tested without a Raspberry Pi.
+ * so the emulators and the port in src/port/ can be tested without a
+ * Raspberry Pi. It is linked with each Mac (Makefile): macii_sim and
+ * macplus_sim.
  * Time is virtual: each display refresh advances the clock by one frame of
  * a 60 Hz (or BMMAC_REFRESH Hz) display, so tests run as fast as the PC
  * allows.
