@@ -54,6 +54,7 @@ enum {
   SD_READ = 0,    // an existing file, for reading
   SD_WRITE = 1,   // create the file, or empty it if it exists
   SD_APPEND = 2,  // create the file if needed, and write at its end
+  SD_UPDATE = 3,  // an existing file, for reading and writing in place
 };
 
 sd_file *sd_open(const char *path, int mode);

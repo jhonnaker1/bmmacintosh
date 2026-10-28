@@ -6,7 +6,7 @@
   500+, for the Mac II and Quadra (and the Mac Plus); any other Pi (3
   Model B, B+ or A+, Zero 2 W, 2 Model B, Zero or Zero W) for the Mac Plus
 - A microSD card (BMMacintosh itself needs a few MB; a Mac hard disk image
-  can be up to 2 GB)
+  can be up to 4 GB, FAT32's largest file)
 - An HDMI display, ideally one that accepts 720p at 60 Hz
 - A USB keyboard and a USB mouse; a USB gamepad works as a mouse too
 - Your own Mac ROMs and system software: Apple's aren't free, so none come

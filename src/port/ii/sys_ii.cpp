@@ -12,7 +12,9 @@
  * while the Mac runs, and the Mac ejects it. Hard disks are there from
  * the Mac's start.
  *
- * FatFs seeks with 32 bits: images up to 2 GB.
+ * On the Pi the images are read and written with FatFs itself (sd_fs.h),
+ * as newlib's lseek() takes an int, which would stop at 2 GB: FAT32 takes
+ * files, and so images, up to 4 GB. The simulator uses the C library.
  *
  * From Basilisk II's Unix sys_unix.cpp.
  *
@@ -32,9 +34,17 @@
 #include "../bmmac.h"
 #include "ii.h"
 
+#ifdef II_SD_FS
+#include "../../sdcard/sd_fs.h"
+#endif
+
 struct bm_file {
 	char name[256];
+#ifdef II_SD_FS
+	sd_file *sd;          /* NULL: no disk in the drive */
+#else
 	int fd;               /* -1: no disk in the drive */
+#endif
 	bool read_only;
 	bool removable;       /* a floppy or CD-ROM drive */
 	bool is_cdrom;
@@ -97,31 +107,133 @@ void SysAddSerialPrefs(void)
 {
 }
 
+/* ---- The image files ------------------------------------------------------------ */
+
+#ifdef II_SD_FS
+
+static bool has_disk(const bm_file *f)
+{
+	return f->sd != NULL;
+}
+
+static void no_disk(bm_file *f)
+{
+	f->sd = NULL;
+}
+
+static bool image_open(bm_file *f, const char *name, bool read_only)
+{
+	f->sd = sd_open(name, read_only ? SD_READ : SD_UPDATE);
+	return f->sd != NULL;
+}
+
+static loff_t image_size(bm_file *f)
+{
+	return sd_size(f->sd);
+}
+
+static bool image_seek(bm_file *f, loff_t pos)
+{
+	return pos >= 0 && pos <= 0xffffffffLL && sd_seek(f->sd, (uint32_t) pos) == SD_OK;
+}
+
+static ssize_t image_read(bm_file *f, void *buffer, size_t length)
+{
+	unsigned got;
+	return sd_read(f->sd, buffer, length, &got) == SD_OK ? (ssize_t) got : -1;
+}
+
+static ssize_t image_write(bm_file *f, const void *buffer, size_t length)
+{
+	return sd_write(f->sd, buffer, length) == SD_OK ? (ssize_t) length : -1;
+}
+
+static void image_sync(bm_file *f)
+{
+	sd_sync(f->sd);
+}
+
+static void image_close(bm_file *f)
+{
+	if (f->sd != NULL)
+		sd_close(f->sd);
+	f->sd = NULL;
+}
+
+#else
+
+static bool has_disk(const bm_file *f)
+{
+	return f->fd >= 0;
+}
+
+static void no_disk(bm_file *f)
+{
+	f->fd = -1;
+}
+
+static bool image_open(bm_file *f, const char *name, bool read_only)
+{
+	f->fd = open(name, read_only ? O_RDONLY : O_RDWR);
+	return f->fd >= 0;
+}
+
+static loff_t image_size(bm_file *f)
+{
+	return lseek(f->fd, 0, SEEK_END);
+}
+
+static bool image_seek(bm_file *f, loff_t pos)
+{
+	return lseek(f->fd, pos, SEEK_SET) >= 0;
+}
+
+static ssize_t image_read(bm_file *f, void *buffer, size_t length)
+{
+	return read(f->fd, buffer, length);
+}
+
+static ssize_t image_write(bm_file *f, const void *buffer, size_t length)
+{
+	return write(f->fd, buffer, length);
+}
+
+static void image_sync(bm_file *f)
+{
+	fsync(f->fd);
+}
+
+static void image_close(bm_file *f)
+{
+	if (f->fd >= 0)
+		close(f->fd);
+	f->fd = -1;
+}
+
+#endif
+
 /* ---- Opening ---------------------------------------------------------------------- */
 
 static bool open_image(bm_file *f, const char *name, bool read_only)
 {
 	uint8 data[256];
 	snprintf(f->name, sizeof f->name, "%s", name);
-	f->fd = -1;
+	no_disk(f);
 	f->size = 0;
 	f->start_byte = 0;
 	if (name[0] == '\0')
 		return true;
 	f->read_only = read_only || f->is_cdrom;
-	f->fd = open(name, f->read_only ? O_RDONLY : O_RDWR);
-	if (f->fd < 0 && !f->read_only) {
+	if (!image_open(f, name, f->read_only)) {
+		if (f->read_only || !image_open(f, name, true)) {
+			printf("BMMacintosh: cannot open the disk image %s\n", name);
+			return false;
+		}
 		f->read_only = true;
-		f->fd = open(name, O_RDONLY);
 	}
-	if (f->fd < 0) {
-		printf("BMMacintosh: cannot open the disk image %s\n", name);
-		return false;
-	}
-	loff_t size = lseek(f->fd, 0, SEEK_END);
+	loff_t size = image_size(f);
 	memset(data, 0, sizeof data);
-	lseek(f->fd, 0, SEEK_SET);
-	if (read(f->fd, data, sizeof data) < 0)
+	if (!image_seek(f, 0) || image_read(f, data, sizeof data) < 0)
 		printf("BMMacintosh: cannot read %s\n", name);
 	FileDiskLayout(size, data, f->start_byte, f->size);
 	printf("BMMacintosh: disk %s, %ld KB%s\n", name, (long) (f->size / 1024),
@@ -157,42 +269,41 @@ void Sys_close(void *arg)
 	bm_file *f = (bm_file *) arg;
 	if (f == NULL)
 		return;
-	if (f->fd >= 0) {
-		fsync(f->fd);
-		close(f->fd);
+	if (has_disk(f)) {
+		image_sync(f);
+		image_close(f);
 	}
-	f->fd = -1;
 	f->open = false;
 }
 
 size_t Sys_read(void *arg, void *buffer, loff_t offset, size_t length)
 {
 	bm_file *f = (bm_file *) arg;
-	if (f == NULL || f->fd < 0)
+	if (f == NULL || !has_disk(f))
 		return 0;
-	if (lseek(f->fd, offset + f->start_byte, SEEK_SET) < 0)
+	if (!image_seek(f, offset + f->start_byte))
 		return 0;
 	bmmac_disk_accessed();
-	ssize_t got = read(f->fd, buffer, length);
+	ssize_t got = image_read(f, buffer, length);
 	return got < 0 ? 0 : (size_t) got;
 }
 
 size_t Sys_write(void *arg, void *buffer, loff_t offset, size_t length)
 {
 	bm_file *f = (bm_file *) arg;
-	if (f == NULL || f->fd < 0 || f->read_only)
+	if (f == NULL || !has_disk(f) || f->read_only)
 		return 0;
-	if (lseek(f->fd, offset + f->start_byte, SEEK_SET) < 0)
+	if (!image_seek(f, offset + f->start_byte))
 		return 0;
 	bmmac_disk_accessed();
-	ssize_t put = write(f->fd, buffer, length);
+	ssize_t put = image_write(f, buffer, length);
 	return put < 0 ? 0 : (size_t) put;
 }
 
 loff_t SysGetFileSize(void *arg)
 {
 	bm_file *f = (bm_file *) arg;
-	return f != NULL && f->fd >= 0 ? f->size : 0;
+	return f != NULL && has_disk(f) ? f->size : 0;
 }
 
 /* Replaces NAME with VALUE in the "item" list of macii.prefs. */
@@ -215,12 +326,11 @@ static void replace_pref(const char *item, const char *name, const char *value)
 void SysEject(void *arg)
 {
 	bm_file *f = (bm_file *) arg;
-	if (f == NULL || f->fd < 0 || !f->removable)
+	if (f == NULL || !has_disk(f) || !f->removable)
 		return;
 	printf("BMMacintosh: ejected %s\n", f->name);
-	fsync(f->fd);
-	close(f->fd);
-	f->fd = -1;
+	image_sync(f);
+	image_close(f);
 	replace_pref(f->is_cdrom ? "cdrom" : "floppy", f->name, "");
 	f->name[0] = '\0';
 }
@@ -246,7 +356,7 @@ bool SysIsFixedDisk(void *arg)
 bool SysIsDiskInserted(void *arg)
 {
 	bm_file *f = (bm_file *) arg;
-	return f != NULL && f->fd >= 0;
+	return f != NULL && has_disk(f);
 }
 
 void SysPreventRemoval(void *arg)
@@ -267,11 +377,11 @@ bool ii_insert_disk(const char *path, bool cdrom)
 {
 	for (int i = 0; i < MAX_FILES; i++) {
 		bm_file *f = &files[i];
-		if (!f->open || !f->removable || f->is_cdrom != cdrom || f->fd >= 0)
+		if (!f->open || !f->removable || f->is_cdrom != cdrom || has_disk(f))
 			continue;
 		char old_name[256];
 		snprintf(old_name, sizeof old_name, "%s", f->name);
-		if (!open_image(f, path, false) || f->fd < 0) {
+		if (!open_image(f, path, false) || !has_disk(f)) {
 			f->name[0] = '\0';
 			return false;
 		}
@@ -302,8 +412,8 @@ const char *ii_floppy_name(int n)
 void emu_sync_disks(void)
 {
 	for (int i = 0; i < MAX_FILES; i++)
-		if (files[i].open && files[i].fd >= 0 && !files[i].read_only)
-			fsync(files[i].fd);
+		if (files[i].open && has_disk(&files[i]) && !files[i].read_only)
+			image_sync(&files[i]);
 }
 
 /* ---- CD-ROM images -------------------------------------------------------------- */
@@ -312,7 +422,7 @@ void emu_sync_disks(void)
 bool SysCDReadTOC(void *arg, uint8 *toc)
 {
 	bm_file *f = (bm_file *) arg;
-	if (f == NULL || f->fd < 0)
+	if (f == NULL || !has_disk(f))
 		return false;
 	uint32 blocks = (uint32) (f->size / 2048) + 150;
 	uint8 *p = toc + 2;

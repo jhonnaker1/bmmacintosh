@@ -52,8 +52,8 @@ card): Apple's system software isn't free either. In the menu, Hard Disks
       tools/mac_media.py disk macos81.chd -o disks/macos81.hda
       tools/mac_media.py disk sys43fin60.chd -o disks/sys43.dsk --volume
 
-    (--volume for the Mac Plus). FatFs, on the SD card, takes images up
-    to 2 GB.
+    (--volume for the Mac Plus). FAT32, on the SD card, takes files up
+    to 4 GB.
 
 Hold Shift while Mac OS starts to start it without its extensions: Mac
 OS 8.1 from MAME's macos81.chd stops at its A/ROSE extension otherwise.

@@ -153,6 +153,8 @@ ifeq ($(EMU),ii)
 # Basilisk II, compiled into build/ so the submodule stays clean.
 B2_FLAGS = $(CPPFLAGS) $(B2_CXXFLAGS) $(B2_INCLUDES) -I $(GEN)/b2
 src/port/ii/%.o src/port/ii/%.d: CPPFLAGS += $(B2_CXXFLAGS) $(B2_INCLUDES) -I $(GEN)/b2
+# Disk images through FatFs itself, past newlib's 2 GB lseek (sys_ii.cpp).
+src/port/ii/sys_ii.o src/port/ii/sys_ii.d: CPPFLAGS += -DII_SD_FS
 $(addprefix src/port/ii/,$(B2_PORT_SRCS:.cpp=.o)): $(GEN)/b2/cputbl.h
 
 # The CPU core's generated sources, as Basilisk II's build makes them

@@ -66,7 +66,7 @@ images. MAME's hard disks (CHD files) need making raw first: see
 [ROMS.txt](ROMS.txt).
 
 **Mac II.** *Hard Disks* in the menu adds hard disk images (raw, or with an
-Apple partition map, up to 2 GB): the Mac starts from the first. They
+Apple partition map, up to 4 GB): the Mac starts from the first. They
 change when the Mac restarts (*Restart the Mac*). *Insert a Floppy Disk*
 puts a floppy image (400K, 800K, 1.4 MB, raw or DiskCopy 4.2) in one of
 the two floppy drives while the Mac runs, *Insert a CD-ROM* an `.iso` or

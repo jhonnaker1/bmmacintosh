@@ -78,6 +78,8 @@ sd_file *sd_open(const char *path, int mode) {
     fa = FA_WRITE | FA_CREATE_ALWAYS;
   } else if (mode == SD_APPEND) {
     fa = FA_WRITE | FA_OPEN_APPEND;
+  } else if (mode == SD_UPDATE) {
+    fa = FA_READ | FA_WRITE;
   }
   if (f_open(&f->fil, p, fa) != FR_OK) {
     free(f);
