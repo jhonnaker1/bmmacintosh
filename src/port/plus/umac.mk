@@ -5,7 +5,9 @@
 # umac's own submodule, external/Musashi): umac's emulator (src/) without
 # its SDL front end (unix_main.c) and the keyboard tables it takes from
 # Mini vMac (include/keymap*.h, GPL 2; BMMacintosh has its own, keymap.c),
-# and Musashi's 68000 with the opcode handlers its m68kmake writes
+# with BMMacintosh's disk driver (src/port/plus/sonydrv.h) in place of
+# umac's (include/sonydrv.h, whose changes are marked "GPLv2"), and
+# Musashi's 68000 with the opcode handlers its m68kmake writes
 # (UMAC_GEN_SRCS; see the Makefile). src/port/plus/ is the front end.
 #
 
@@ -26,7 +28,9 @@ UMAC_PORT_SRCS = main_plus.c
 # (umac_prefix.h) and Musashi's configuration umac's.
 UMAC_CFLAGS = -std=gnu11 -w -DMUSASHI_CNF=\"$(abspath $(UMAC)/include/m68kconf.h)\" \
               -include $(SRCROOT)src/port/plus/umac_prefix.h
-UMAC_INCLUDES = -I $(UMAC)/include -I $(MUSASHI)
+# src/port/plus first: BMMacintosh's disk driver (sonydrv.h) in place of
+# umac's, whose changes are marked "GPLv2".
+UMAC_INCLUDES = -I $(SRCROOT)src/port/plus -I $(UMAC)/include -I $(MUSASHI)
 
 # umac's main.c resets the Mac when the Mac ejects its disk; with no disk
 # it would start again and again. Its umac_disc_ejected() is renamed away

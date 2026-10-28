@@ -115,7 +115,7 @@ $(GEN)/m68kops.o: $(GEN)/m68kops.c
 
 $(OUT)/umac/main.o: UMAC_FLAGS += $(UMAC_MAIN_CFLAGS)
 
-$(OUT)/umac/%.o: $(UMAC)/src/%.c $(GEN)/m68kops.h
+$(OUT)/umac/%.o: $(UMAC)/src/%.c $(GEN)/m68kops.h $(ROOT)/src/port/plus/sonydrv.h
 	@mkdir -p $(dir $@)
 	@$(CC) $(UMAC_FLAGS) -c -o $@ $<
 

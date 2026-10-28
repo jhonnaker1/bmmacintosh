@@ -230,7 +230,7 @@ $(UMAC_GEN_OBJS): $(GEN)/umac/%.o: $(GEN)/umac/%.c
 
 $(BUILD)/umac/main.o: UMAC_FLAGS += $(UMAC_MAIN_CFLAGS)
 
-$(BUILD)/umac/%.o: $(UMAC)/src/%.c $(GEN)/umac/m68kops.h
+$(BUILD)/umac/%.o: $(UMAC)/src/%.c $(GEN)/umac/m68kops.h src/port/plus/sonydrv.h
 	@mkdir -p $(dir $@)
 	@echo "  CC    $<"
 	@$(CC) $(UMAC_FLAGS) -c -o $@ $<

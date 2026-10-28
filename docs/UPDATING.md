@@ -45,7 +45,12 @@ https://github.com/evansm7/umac, with Musashi as its own submodule
 sources BMMacintosh builds (not `src/unix_main.c` or the Mini vMac
 keyboard tables) and renames umac's `umac_disc_ejected()` away (BMMacintosh
 keeps the Mac running with its drive empty instead of resetting it);
-`src/port/plus/umac_prefix.h` makes umac's RAM size a variable.
+`src/port/plus/umac_prefix.h` makes umac's RAM size a variable, and
+`src/port/plus/sonydrv.h` is the Mac disk driver umac's `rom.c` puts in
+the ROM, BMMacintosh's in place of umac's (it is found first on the
+include path). If umac changes how its driver calls the host side
+(`disc_pv_hook()` in `src/disc.c`, `PV_SONY_ADDR`), the driver has to
+follow.
 
 For a new commit, check out umac and its Musashi
 (`git submodule update --init external/Musashi` in it), compare umac's

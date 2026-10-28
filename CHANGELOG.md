@@ -17,8 +17,9 @@ of its own.
   and a CD-ROM drive that take images while the Mac runs, and the card's
   `shared` folder as a disk on the Mac's desktop (ExtFS, on FAT)
 - The Mac Plus (`macplus*.img`, every Pi): umac by Matt Evans with Musashi,
-  the Mac Plus's ROM with 128K to 4 MB, its disk read and written in place,
-  its sound buffer played
+  the Mac Plus's ROM with 128K to 4 MB, its disk read and written in place
+  through a disk driver of BMMacintosh's own (Basilisk II's, GPL version 2
+  or later, in place of umac's, marked "GPLv2"), its sound buffer played
 - Switching Macs from the menu (Machine), which rewrites `config.txt`'s
   `kernel=` lines and restarts the Pi, as BMC64 switched machines
 - The user's own ROMs, as files or as MAME's zipped sets (whose chips are

@@ -49,5 +49,6 @@ front end (src/unix_main.c) or the keyboard tables taken from Mini vMac
 (include/keymap.h, keymap_sdl.h): BMMacintosh has its own keyboard code.
 The parts from Basilisk II in disc.c and b2_macos_util.h are under the
 GPL version 2 or later, as Basilisk II is (basilisk2.txt, GPL-2.0.txt).
-The disk driver (macsrc/sonydrv.S, built into include/sonydrv.h) is
-Basilisk II's, with Matt Evans's changes, and says "GPLv2".
+umac's replacement Mac disk driver (macsrc/sonydrv.S, include/sonydrv.h),
+whose changes are marked "GPLv2", isn't used: BMMacintosh has its own,
+from Basilisk II's (GPL version 2 or later).
