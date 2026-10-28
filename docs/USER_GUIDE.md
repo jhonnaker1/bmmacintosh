@@ -26,6 +26,19 @@ and `[pi5]` sections and restarts the Pi. A Pi 4 or 5 starts as a Mac II
 the first time; a Pi Zero, 2 or 3 is always a Mac Plus. Both Macs use the
 same card: the ROMs, the disks, the web UI and BMMacintosh's settings.
 
+### Left out, for now
+
+These were decided against for this version; they may come later:
+
+- **Basilisk II's JIT** (the Mac II's faster CPU): it writes x86 code only.
+  On the Pi's ARM it would need a new JIT of its own, a project of its
+  own. The Mac II runs on Basilisk II's interpreting 68040.
+- **Saved states** (freezing a Mac and starting it again where it was):
+  Basilisk II has no way to save its state, and umac keeps parts of its
+  own (its VIA and SCC) where a front end can't reach them.
+- **A second drive on the Mac Plus**: umac has one disk drive, and a
+  second means changing umac itself, which BMMacintosh uses unmodified.
+
 ## The SD card
 
 | File or folder   | What it is                                                  |

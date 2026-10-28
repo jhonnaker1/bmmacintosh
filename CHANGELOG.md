@@ -41,6 +41,8 @@ of its own.
   Mac's (Alt Command, the Windows key Option); gamepads as the mouse
 - The PC simulator's tests boot both Macs' ROMs, and with the user's disks
   Mac OS 8.1 and System 4.3 to the Finder
+- Left out for now (see the User Guide's *Left out, for now*): Basilisk
+  II's JIT (x86 only), saved states, and a second drive on the Mac Plus
 
 Tested in the PC simulator; all seven kernels build. Not yet tried on a
 Raspberry Pi.
