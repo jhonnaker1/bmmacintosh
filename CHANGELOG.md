@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.1.0 – 2026-10-22
+## 0.1.0 – 2026-10-28
 
 The first BMMacintosh: BMAtariST 0.1.0 (itself from BMApple2, BMCoco,
 BMA800XL and BMC64), with Hatari replaced by two 68k Macs, each a kernel
@@ -28,7 +28,8 @@ of its own.
   its keyboard with the arrow keys and keypad (the Instant command umac
   doesn't answer, answered in front of it), and a locking Caps Lock; its
   clock chip, with the Pi's time and its parameter RAM kept on the card
-  (`macplus.pram`); DiskCopy 4.2 images (their checksum kept right); its
+  (`macplus.pram`); DiskCopy 4.2 images (their checksum kept right), and
+  hard disks with an Apple partition map (their first HFS partition); its
   sound at the volume and from the buffer the Mac chooses, and off when
   the Mac switches it off
 - Switching Macs from the menu (Machine), which rewrites `config.txt`'s
@@ -44,8 +45,9 @@ of its own.
 - Left out for now (see the User Guide's *Left out, for now*): Basilisk
   II's JIT (x86 only), saved states, and a second drive on the Mac Plus
 
-Tested in the PC simulator; all seven kernels build. Not yet tried on a
-Raspberry Pi.
+Tested in the PC simulator; all seven kernels build. On a Raspberry Pi 5
+the Mac II starts Mac OS 8.1; the Mac Plus, the Mac II's network and the
+other Pis haven't been tried on a Pi yet.
 
 BMAtariST's own history is in its repository:
 https://github.com/jhonnaker1/bmatarist/blob/main/CHANGELOG.md

@@ -92,7 +92,8 @@ and `.rsrc` folders next to them; characters FAT can't have in a name are
 written `%XX` on the card.
 
 **Mac Plus.** *Disk* in the menu chooses its disk (a floppy image, raw or
-DiskCopy 4.2, or a hard disk's HFS volume), and the Mac starts again from
+DiskCopy 4.2, or a hard disk's, raw or partitioned: it starts from the
+first HFS partition), and the Mac starts again from
 it. A DiskCopy image's checksum is kept right as the Mac writes to it. *No Disk*
 takes it out. When the Mac ejects its disk the drive stays empty until
 the Mac restarts.
@@ -315,8 +316,8 @@ takes in the card's `roms` folder ([ROMS.txt](ROMS.txt)), or switch Macs
 
 **The flashing "?" disk**: the Mac has no disk it can start from. Choose
 one in the menu (Hard Disks or Disk) and *Restart the Mac*. A Mac II hard
-disk from MAME needs making raw first, and the Mac Plus takes an HFS
-volume, not a whole hard disk with its partition map ([ROMS.txt](ROMS.txt)).
+disk from MAME needs making raw first ([ROMS.txt](ROMS.txt)); the Mac Plus
+starts from its first HFS partition.
 
 **"Sorry, a system error occurred" while Mac OS starts**: often an
 extension: hold Shift while it starts.

@@ -18,7 +18,7 @@
 #
 #   BMMAC_II_DISK=macos81.hda     a raw Mac OS 8.1 hard disk (MAME's
 #                                 macos81.chd made raw: tools/mac_media.py)
-#   BMMAC_PLUS_DISK=system.dsk    an 800K System 4.3 (or other) floppy
+#   BMMAC_PLUS_DISK=system.dsk    a System 4.3 (or other) floppy or HFS volume
 #
 # They are copied first (the Macs write to them).
 #
@@ -397,7 +397,7 @@ head += struct.pack('>IIII', len(data), 0, checksum(data), 0) + bytes([1, 0x22, 
 open(sys.argv[2], 'wb').write(head + data)
 EOF2
     run "$PLUS" plusdc42 60 "plus_disk=$OUT/plusdc42/system.image" '2400 shot a.ppm\n2401 quit\n'
-    check_log plusdc42 "disk .*system\.image, 800 KB, DiskCopy 4\.2" "the DiskCopy header is skipped"
+    check_log plusdc42 "disk .*system\.image, [0-9]+ KB, DiskCopy 4\.2" "the DiskCopy header is skipped"
     finder plusdc42 a
     if python3 - "$OUT/plusdc42/system.image" <<'EOF2'
 import struct, sys
@@ -414,6 +414,26 @@ EOF2
     else
         fail plusdc42 "the DiskCopy checksum doesn't match the data"
     fi
+
+    echo "The same floppy as a partitioned hard disk's HFS partition"
+    mkdir -p "$OUT/pluspart"
+    python3 - "$BMMAC_PLUS_DISK" "$OUT/pluspart/system.hda" <<'EOF2'
+import struct, sys
+data = open(sys.argv[1], 'rb').read()
+start = 64                       # blocks: the map's, then a driver's gap
+blocks = len(data) // 512
+def entry(first, count, name, kind):
+    e = b'PM' + b'\0\0' + struct.pack('>III', 2, first, count)
+    e += name.ljust(32, b'\0') + kind.ljust(32, b'\0')
+    return e.ljust(512, b'\0')
+ddm = (b'ER' + struct.pack('>HI', 512, start + blocks)).ljust(512, b'\0')
+pm = entry(1, 63, b'Apple', b'Apple_partition_map') + entry(start, blocks, b'MacOS', b'Apple_HFS')
+open(sys.argv[2], 'wb').write((ddm + pm).ljust(start * 512, b'\0') + data)
+EOF2
+    run "$PLUS" pluspart 60 "plus_disk=$OUT/pluspart/system.hda" '2400 shot a.ppm\n2401 quit\n'
+    check_log pluspart "the disk's HFS partition, 32 KB in" "the partition map is skipped"
+    check_log pluspart "disk .*system\.hda, [0-9]+ KB$" "the Mac gets the HFS partition alone"
+    finder pluspart a
 else
     skip "System from a floppy (no BMMAC_PLUS_DISK)"
 fi

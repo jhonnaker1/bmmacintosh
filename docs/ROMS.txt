@@ -43,16 +43,17 @@ card): Apple's system software isn't free either. In the menu, Hard Disks
 (Mac II) or Disk (Mac Plus), then Restart the Mac.
 
   - Disk images (.dsk, .img, .image, .hda, .hfv): a floppy's (400K,
-    800K), raw or DiskCopy 4.2, or a hard disk's. The Mac II also takes
-    hard disks with an Apple partition map; the Mac Plus needs a hard
-    disk's HFS volume alone.
+    800K), raw or DiskCopy 4.2, or a hard disk's, raw or with an Apple
+    partition map. The Mac Plus starts from such a disk's first HFS
+    partition.
   - MAME's hard disks are CHD files, which BMMacintosh can't read: MAME's
     chdman makes them raw, and so does
 
       tools/mac_media.py disk macos81.chd -o disks/macos81.hda
-      tools/mac_media.py disk sys43fin60.chd -o disks/sys43.dsk --volume
+      tools/mac_media.py disk sys43fin60.chd -o disks/sys43.hda
 
-    (--volume for the Mac Plus). FAT32, on the SD card, takes files up
+    (both Macs start from what it makes; --volume writes the HFS volume
+    alone, for other emulators). FAT32, on the SD card, takes files up
     to 4 GB.
 
 Hold Shift while Mac OS starts to start it without its extensions: Mac

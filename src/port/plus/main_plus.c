@@ -161,8 +161,40 @@ static int is_dc42(const uint8_t *head, long size)
 	    && (data & 0x1ff) == 0 && (long) (DC42_HEADER + data + tags) == size;
 }
 
+/* A hard disk with an Apple partition map (as MAME's and the Mac II's are):
+   its first Apple_HFS partition's place and size in bytes. umac's disk
+   driver gives the Mac a volume, not a disk, so the Mac Plus starts from
+   that partition alone. */
+static int hfs_partition(long size, long *start, unsigned *length)
+{
+	uint8_t block[512];
+	uint32_t count, i;
+	if (fseek(disk, 0, SEEK_SET) != 0 || fread(block, 1, 512, disk) != 512
+	    || block[0] != 'E' || block[1] != 'R')
+		return FALSE;
+	for (i = 1, count = 1; i <= count && i < 64; i++) {
+		if (fread(block, 1, 512, disk) != 512 || block[0] != 'P' || block[1] != 'M')
+			return FALSE;
+		if (i == 1)
+			count = be32(block + 4);
+		if (strncmp((const char *) block + 48, "Apple_HFS", 32) == 0) {
+			long first = (long) be32(block + 8) * 512;
+			long blocks = (long) be32(block + 12) * 512;
+			if (first <= 0 || first >= size)
+				return FALSE;
+			if (blocks > size - first)
+				blocks = size - first;
+			*start = first;
+			*length = (unsigned) blocks;
+			return TRUE;
+		}
+	}
+	return FALSE;
+}
+
 /* The disk image in bmmac.cfg, read and written in place: a floppy's or a
-   hard disk's, raw or DiskCopy 4.2. When the Mac ejects it, umac leaves
+   hard disk's, raw or DiskCopy 4.2, or a partitioned hard disk's HFS
+   partition. When the Mac ejects it, umac leaves
    the drive empty until the Mac restarts. */
 static int open_disk(disc_descr_t *d)
 {
@@ -191,6 +223,8 @@ static int open_disk(disc_descr_t *d)
 		disk_dc42 = TRUE;
 		disk_start = DC42_HEADER;
 		disk_size = be32(head + 64);
+	} else if (hfs_partition((long) st.st_size, &disk_start, &disk_size)) {
+		printf("BMMacintosh: the disk's HFS partition, %ld KB in\n", disk_start / 1024);
 	}
 	d->base = NULL;
 	d->size = disk_size;

@@ -16,9 +16,10 @@
 #   tools/mac_media.py disk DISK.chd -o DISK.hda [--volume] [--chdman PATH]
 #
 # makes a raw disk image of one with MAME's chdman (on PATH, or --chdman).
-# The Mac II (Basilisk II) starts from it as it is. The Mac Plus (umac)
-# needs the HFS volume alone, without the disk's partition map: --volume
-# writes just that (a .dsk). An .hda can be given instead of a .chd.
+# Both Macs start from it as it is (the Mac Plus from its first HFS
+# partition). --volume writes the HFS volume alone, without the disk's
+# partition map (a .dsk), for emulators that need that. An .hda can be
+# given instead of a .chd.
 #
 # Apple's ROMs and system software aren't free: keep what this makes for
 # your own use.
@@ -207,7 +208,7 @@ def main():
     d.add_argument("source")
     d.add_argument("-o", "--output", required=True)
     d.add_argument("--volume", action="store_true",
-                   help="the HFS volume alone, for the Mac Plus")
+                   help="the HFS volume alone, without the partition map")
     d.add_argument("--chdman", help="MAME's chdman")
     args = p.parse_args()
     return cmd_roms(args) if args.command == "roms" else cmd_disk(args)

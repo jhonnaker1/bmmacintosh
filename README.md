@@ -40,7 +40,7 @@ it available; see the [third-party](docs/THIRD_PARTY.md) acknowledgements.
 - Disk images on the SD card: hard disks (raw, or with an Apple partition
   map), floppies (raw 400K, 800K and 1.4 MB, and DiskCopy 4.2) and CD-ROMs
   (`.iso`, `.toast`) on the Mac II; a floppy image (raw or DiskCopy 4.2) or
-  a hard disk's volume on the Mac Plus. Written in place, so the Pi can be switched off at any time
+  a hard disk (raw or partitioned) on the Mac Plus. Written in place, so the Pi can be switched off at any time
 - On the Mac II, a folder on the card (`shared`) is a disk on the Mac's
   desktop, *SD Card*: copy files to it from a PC, or from the web UI
 - On the Mac II, the network: with the Pi on Ethernet or Wi-Fi, Mac OS's
@@ -77,8 +77,9 @@ The Raspberry Pi 3 Model B, B+ and A+ and the Pi Zero 2 W
 (`macplus8-32.img`), the Pi 2 Model B (`macplus7.img`) and the Pi Zero and
 Zero W (`macplus.img`) run the Mac Plus.
 
-BMMacintosh 0.1.0 has been tested in the PC simulator only (below), not
-yet on a Raspberry Pi.
+BMMacintosh 0.1.0 has been tested in the PC simulator (below) and, for the
+Mac II, on a Raspberry Pi 5, where it starts Mac OS 8.1. The Mac Plus, the
+Mac II's network and the other Pis haven't been tried on a Pi yet.
 
 ## Getting started
 
