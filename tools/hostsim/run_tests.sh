@@ -261,6 +261,17 @@ for size in 832x624 1152x870 1280x1024; do
     check_log "ii$size" "Mac screen $size, VDEPTH_8BIT" "a $size screen"
     question "ii$size" a
 done
+# 1600x1200 needs a display of 800 lines or more (the Pi's display shrinks
+# a picture to 2/3 at most): on a 1920x1200 one it is there, on 720p the
+# Mac starts at 640x480 instead.
+mkdir -p "$OUT/ii1600x1200" "$OUT/ii1600at720"
+printf 'screen win/1600/1200\n' > "$OUT/ii1600x1200/macii.prefs"
+printf 'screen win/1600/1200\n' > "$OUT/ii1600at720/macii.prefs"
+BMMAC_DISPLAY=1920x1200 run "$II" ii1600x1200 60 "" '400 shot a.ppm\n401 quit\n'
+check_log ii1600x1200 "Mac screen 1600x1200, VDEPTH_8BIT" "a 1600x1200 screen on a 1920x1200 display"
+question ii1600x1200 a
+run "$II" ii1600at720 60 "" '400 shot a.ppm\n401 quit\n'
+check_log ii1600at720 "Mac screen 640x480, VDEPTH_8BIT" "no 1600x1200 on a 720p display: 640x480"
 
 echo "On a 50 Hz display"
 run "$II" iitimer 50 "" '600 shot a.ppm\n900 audio\n901 quit\n'

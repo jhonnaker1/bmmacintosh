@@ -14,7 +14,7 @@ Each Mac is a kernel of its own, with its own emulator:
 
 - **Mac II and Quadra** (`macii*.img`, Pi 4 and 5):
   [Basilisk II](https://github.com/kanjitalk755/macemu), the 68040 Mac with
-  an FPU, 8 to 256 MB of memory and a screen of up to 1280x1024 in millions
+  an FPU, 8 to 256 MB of memory and a screen of up to 1600x1200 in millions
   of colours. It runs the ROM of a IIci or a Quadra (best a Quadra 650's or
   800's) and System 7 to Mac OS 8.1.
 - **Mac Plus** (`macplus*.img`, every Pi):

@@ -7,8 +7,8 @@
  * changed since the last are converted to the display's RGB565: there is
  * no VOSF (Basilisk II's way of finding the changes with the MMU).
  *
- * The screen can be 640x480, 800x600, 832x624, 1024x768, 1152x870 or
- * 1280x1024 (Apple's monitors' sizes), in any depth: the
+ * The screen can be 640x480, 800x600, 832x624, 1024x768, 1152x870,
+ * 1280x1024 or 1600x1200 (Apple's monitors' sizes), in any depth: the
  * Monitors control panel changes it, and macii.prefs keeps it ("screen",
  * "displaycolordepth").
  *
@@ -26,6 +26,7 @@
 #include "video.h"
 #include "video_defs.h"
 
+#include "../../host.h"
 #include "../bmmac.h"
 #include "ii.h"
 
@@ -98,8 +99,14 @@ bool VideoInit(bool classic)
 		uint32 w, h, id;
 	} sizes[] = {
 		{640, 480, 0x81}, {800, 600, 0x82}, {832, 624, 0x83},
-		{1024, 768, 0x84}, {1152, 870, 0x85}, {1280, 1024, 0x86}
+		{1024, 768, 0x84}, {1152, 870, 0x85}, {1280, 1024, 0x86},
+		{1600, 1200, 0x87}
 	};
+	/* A screen taller than the display is shrunk to it, and the Pi 4 and
+	   5's display hardware shrinks a picture to no less than 2/3: 1200
+	   lines need a display of 800 or more (1080p, not 720p). */
+	int display_w, display_h;
+	host_display_size(&display_w, &display_h);
 	vector<video_mode> modes;
 	int width = 640, height = 480, depth_bits, s, d;
 	uint32 default_id = 0x81;
@@ -119,6 +126,8 @@ bool VideoInit(bool classic)
 		default_id = 0x80;
 	} else {
 		for (s = 0; s < (int) (sizeof sizes / sizeof sizes[0]); s++) {
+			if (display_h > 0 && 3 * display_h < 2 * (int) sizes[s].h)
+				continue;
 			for (d = VDEPTH_1BIT; d <= VDEPTH_32BIT; d++)
 				add_mode(modes, sizes[s].w, sizes[s].h, sizes[s].id, (video_depth) d);
 			if ((int) sizes[s].w == width && (int) sizes[s].h == height)

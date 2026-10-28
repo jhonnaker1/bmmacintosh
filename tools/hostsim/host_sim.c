@@ -714,10 +714,14 @@ const char *host_model_name(void)
 	return "Host simulator";
 }
 
+/* 1280x720, or BMMAC_DISPLAY (1920x1200). */
 void host_display_size(int *width, int *height)
 {
+	const char *size = getenv("BMMAC_DISPLAY");
 	*width = 1280;
 	*height = 720;
+	if (size != NULL)
+		sscanf(size, "%dx%d", width, height);
 }
 
 int host_display_match_rate(double fps)

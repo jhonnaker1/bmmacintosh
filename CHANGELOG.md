@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- The Mac II's screen can also be 1600x1200 (Apple's 20-inch ColorSync
+  Display's largest size), offered when the display has 800 lines or more
+  (1080p, 1920x1200): a screen taller than the display is shrunk to it,
+  and the Pi's display hardware shrinks to two thirds at most
+
 ## 0.1.1 – 2026-10-28
 
 - The web UI saves `config.txt` and the other settings files, and shuts

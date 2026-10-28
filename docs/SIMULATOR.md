@@ -170,6 +170,7 @@ Useful settings, as environment variables:
 | `BMMAC_REFRESH`             | The display's refresh rate (default 60)                    |
 | `BMMAC_SIM_RATE`            | The sound output's rate (48000 for a Pi 4 or 5's HDMI)     |
 | `BMMAC_IP`                  | Pretend the network is up with this address (from frame 100) |
+| `BMMAC_DISPLAY`             | The display's size the Mac is told (`1920x1200`; 1280x720 otherwise) |
 | `BMMAC_WIFI`                | Pretend Wi-Fi is running, with a few networks to choose from |
 | `BMMAC_REFRESH_LATER`       | Change the display's refresh rate to this at frame 30      |
 
