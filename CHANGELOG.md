@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.1.1 – 2026-10-28
+
+- The web UI saves `config.txt` and the other settings files, and shuts
+  down and restarts the Pi, again: the Pi checked for a different header
+  name from the one its pages send (issue #2). Uploading over a file the
+  Pi protects (`config.txt`, `cmdline.txt`) now says to edit it instead
+- The Mac II's screen can also be 832x624, 1152x870 and 1280x1024
+  (Apple's monitors' sizes); on the Pi 4, a screen taller than the display
+  is shrunk to it in sharp mode rather than drawn past its end
+- The Mac II's speed in the menu says it keeps up (the share of the Mac's
+  frames shown) and that its CPU runs at full speed, which is often
+  several times a real Quadra's; it isn't timed to one
+- The User Guide says why there is no startup chime, and that screens
+  bigger than 1280x1024 are left out for now
+
 ## 0.1.0 – 2026-10-28
 
 The first BMMacintosh: BMAtariST 0.1.0 (itself from BMApple2, BMCoco,

@@ -7,7 +7,8 @@
  * changed since the last are converted to the display's RGB565: there is
  * no VOSF (Basilisk II's way of finding the changes with the MMU).
  *
- * The screen can be 640x480, 800x600 or 1024x768, in any depth: the
+ * The screen can be 640x480, 800x600, 832x624, 1024x768, 1152x870 or
+ * 1280x1024 (Apple's monitors' sizes), in any depth: the
  * Monitors control panel changes it, and macii.prefs keeps it ("screen",
  * "displaycolordepth").
  *
@@ -96,7 +97,8 @@ bool VideoInit(bool classic)
 	static const struct {
 		uint32 w, h, id;
 	} sizes[] = {
-		{640, 480, 0x81}, {800, 600, 0x82}, {1024, 768, 0x83}
+		{640, 480, 0x81}, {800, 600, 0x82}, {832, 624, 0x83},
+		{1024, 768, 0x84}, {1152, 870, 0x85}, {1280, 1024, 0x86}
 	};
 	vector<video_mode> modes;
 	int width = 640, height = 480, depth_bits, s, d;
@@ -116,7 +118,7 @@ bool VideoInit(bool classic)
 		default_depth = VDEPTH_1BIT;
 		default_id = 0x80;
 	} else {
-		for (s = 0; s < 3; s++) {
+		for (s = 0; s < (int) (sizeof sizes / sizeof sizes[0]); s++) {
 			for (d = VDEPTH_1BIT; d <= VDEPTH_32BIT; d++)
 				add_mode(modes, sizes[s].w, sizes[s].h, sizes[s].id, (video_depth) d);
 			if ((int) sizes[s].w == width && (int) sizes[s].h == height)

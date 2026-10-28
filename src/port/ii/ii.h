@@ -9,8 +9,8 @@
 #define BMMAC_II_H_
 
 /* main_ii.cpp: the frame buffer, after the ROM in the Mac's memory: the
-   biggest screen, 1024x768 in millions of colours. */
-#define II_FRAME_BUFFER_SIZE (1024 * 768 * 4)
+   biggest screen, 1280x1024 in millions of colours. */
+#define II_FRAME_BUFFER_SIZE (1280 * 1024 * 4)
 extern uint8 *ii_frame_buffer;
 
 /* main_ii.cpp: the Mac's clock, in microseconds (timer_ii.cpp). */

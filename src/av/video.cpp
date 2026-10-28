@@ -325,7 +325,13 @@ void Pi4Video::DrawSharp(uint8_t *page) {
   if (m_nDestW * bytes > sizeof line) {
     return;
   }
-  for (int y = 0; y < m_nViewH; y++) {
+  // A view taller than the display (a Mac screen of 1024 lines on a 720p
+  // one) loses lines, picked nearest neighbour as the columns are, rather
+  // than running past the framebuffer's end.
+  const bool shrink = (unsigned)m_nViewH * m_nRepeat > m_nDestH;
+  const unsigned rows = shrink ? m_nDestH : (unsigned)m_nViewH;
+  for (unsigned row = 0; row < rows; row++) {
+    const unsigned y = shrink ? row * (unsigned)m_nViewH / m_nDestH : row;
     const uint16_t *src = m_pSource + (size_t)(m_nViewY + y) * m_nSourceWidth;
     if (m_nDepth == 16) {
       uint16_t *line16 = (uint16_t *)line;
@@ -340,9 +346,10 @@ void Pi4Video::DrawSharp(uint8_t *page) {
         line32[i] = Pi4Rgb565ToArgb(src[m_pColumn[i]]);
       }
     }
-    uint8_t *dst = page + (size_t)(m_nDestY + y * m_nRepeat) * m_nPitch +
+    const unsigned repeat = shrink ? 1 : m_nRepeat;
+    uint8_t *dst = page + (size_t)(m_nDestY + row * repeat) * m_nPitch +
                    m_nDestX * bytes;
-    for (unsigned r = 0; r < m_nRepeat; r++) {
+    for (unsigned r = 0; r < repeat; r++) {
       ToFrameBuffer(dst, line, m_nDestW * bytes, 0);
       dst += m_nPitch;
     }

@@ -14,7 +14,7 @@ in a couple of seconds and can be switched off at any time.
 | Pi | 4, 400, 5, 500, 500+ | every Pi |
 | CPU | 68040 with an FPU (or a 68020 or 68030) | 68000, 7.83 MHz |
 | Memory | 8 to 256 MB | 128K to 4 MB |
-| Screen | 640x480, 800x600, 1024x768; black and white to millions of colours (the Monitors control panel) | 512x342, black and white |
+| Screen | 640x480, 800x600, 832x624, 1024x768, 1152x870, 1280x1024; black and white to millions of colours (the Monitors control panel) | 512x342, black and white |
 | ROM | a IIci's or a Quadra's (best a Quadra 650's or 800's) | the Mac Plus's (its last) |
 | Disks | hard disks, two floppy drives, a CD-ROM drive, and a folder on the card (*SD Card*) | one disk, a floppy's or a hard disk's |
 | Settings | `macii.prefs` (Basilisk II's own) | `bmmac.cfg` |
@@ -38,6 +38,19 @@ These were decided against for this version; they may come later:
   own (its VIA and SCC) where a front end can't reach them.
 - **A second drive on the Mac Plus**: umac has one disk drive, and a
   second means changing umac itself, which BMMacintosh uses unmodified.
+- **Screens bigger than 1280x1024** (Apple's 1600x1200): a screen taller
+  than the display is shrunk to fit, and the Pi 5's display hardware
+  won't shrink a picture to less than two thirds, so 1200 lines would
+  only show on a 1080p display.
+
+Not supported:
+
+- **The startup chime** (the Mac II): a real Mac plays it from its ROM on
+  its own sound chip. Basilisk II doesn't emulate that chip (the Mac's
+  sound reaches it through the Sound Manager, once Mac OS is running) and
+  skips the ROM's chime, so the Mac II starts silently, as Basilisk II
+  does everywhere. Apple's recording of the chime can't be shipped
+  instead.
 
 ## The SD card
 

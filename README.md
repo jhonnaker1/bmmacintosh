@@ -14,7 +14,7 @@ Each Mac is a kernel of its own, with its own emulator:
 
 - **Mac II and Quadra** (`macii*.img`, Pi 4 and 5):
   [Basilisk II](https://github.com/kanjitalk755/macemu), the 68040 Mac with
-  an FPU, 8 to 256 MB of memory and a screen of up to 1024x768 in millions
+  an FPU, 8 to 256 MB of memory and a screen of up to 1280x1024 in millions
   of colours. It runs the ROM of a IIci or a Quadra (best a Quadra 650's or
   800's) and System 7 to Mac OS 8.1.
 - **Mac Plus** (`macplus*.img`, every Pi):
@@ -77,7 +77,7 @@ The Raspberry Pi 3 Model B, B+ and A+ and the Pi Zero 2 W
 (`macplus8-32.img`), the Pi 2 Model B (`macplus7.img`) and the Pi Zero and
 Zero W (`macplus.img`) run the Mac Plus.
 
-BMMacintosh 0.1.0 has been tested in the PC simulator (below) and, for the
+BMMacintosh has been tested in the PC simulator (below) and, for the
 Mac II, on a Raspberry Pi 5, where it starts Mac OS 8.1. The Mac Plus, the
 Mac II's network and the other Pis haven't been tried on a Pi yet.
 

@@ -72,9 +72,11 @@ enum {
 
 /* ---- frontend.c ----------------------------------------------------------- */
 
-/* The frame buffer's size (the biggest Mac screen). */
-#define BMMAC_FB_W 1024
-#define BMMAC_FB_H 768
+/* The frame buffer's size (the biggest Mac screen): the Mac II's
+   1280x1024, the Mac Plus's 1024x768 (its kernels run on the small Pis
+   too, so it keeps the size it always had). */
+#define BMMAC_FB_W (emu_machine() == BMMAC_II ? 1280 : 1024)
+#define BMMAC_FB_H (emu_machine() == BMMAC_II ? 1024 : 768)
 
 /* Starts the display and sound, then the emulator (emu_main()). */
 void bmmac_main(void);

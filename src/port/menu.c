@@ -534,6 +534,25 @@ static void network_menu(void)
 
 /* ---- Information ----------------------------------------------------------- */
 
+/* The frames' pace, as a percentage of the real Mac's. The Mac Plus's CPU
+   is timed to the frames, so that is its speed too; the Mac II's
+   (Basilisk II's) runs as many instructions as the Pi can between them,
+   often several times a real Quadra's, so the percentage says only that
+   it keeps up. */
+static const char *speed_text(int long_form)
+{
+	static char text[96];
+	if (emu_machine() == BMMAC_II)
+		snprintf(text, sizeof text, long_form
+		         ? "keeps up (%d%% of its frames), CPU at full speed"
+		         : "Keeping up at %d%%; CPU at full speed.", bmmac_speed_percent());
+	else
+		snprintf(text, sizeof text, long_form
+		         ? "%d%% of the real machine's"
+		         : "Running at %d%% of the real Mac's speed.", bmmac_speed_percent());
+	return text;
+}
+
 static void about(void)
 {
 	char text[1200], status[64];
@@ -546,10 +565,10 @@ static void about(void)
 	         "%s\n"
 	         "Based on BMAtariST, BMApple2, BMCoco, BMA800XL and BMC64.\n\n"
 	         "Machine: %s\n"
-	         "Speed: %d%% of the real machine's\n"
+	         "Speed: %s\n"
 	         "Display: %dx%d %.2f Hz, frames %s\n"
 	         "Network: %s",
-	         emu_credits(), emu_machine_text(), bmmac_speed_percent(), w, h,
+	         emu_credits(), emu_machine_text(), speed_text(TRUE), w, h,
 	         bmmac_refresh_rate(),
 	         bmmac_vsync_locked() ? "locked to the display" : "timer paced", status);
 	osd_info("About BMMacintosh", text);
@@ -593,8 +612,7 @@ void bmmac_menu(void)
 		};
 		memcpy(items + n, common, sizeof common);
 		n += sizeof common / sizeof common[0];
-		snprintf(speed, sizeof speed, "Running at %d%% of the real Mac's speed.",
-		         bmmac_speed_percent());
+		snprintf(speed, sizeof speed, "%s", speed_text(FALSE));
 		chosen = osd_menu(title, items, n, &sel);
 
 		switch (chosen) {

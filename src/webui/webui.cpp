@@ -153,7 +153,7 @@ long ParseContentLength(const char *request) {
 }
 
 // TRUE if the raw request has a header whose name-and-colon matches
-// name_colon (lower case, e.g. "x-bmmac-web:"). Stops at the blank line so
+// name_colon (lower case, e.g. "x-bmmacintosh-web:"). Stops at the blank line so
 // body text can't pose as a header.
 boolean HasHeader(const char *request, const char *name_colon) {
   const char *p = request;
@@ -477,7 +477,7 @@ boolean HandleConnection(CSocket *socket) {
     // or no-cors fetch cannot send (it would need a CORS preflight, which
     // this server never grants). Stops another site's page from using the
     // browser's cached PIN to change them.
-    if (!HasHeader(request, "x-bmmac-web:")) {
+    if (!HasHeader(request, "x-bmmacintosh-web:")) {
       SendText(socket, 403, "Forbidden", "missing X-BMMacintosh-Web header\n");
       return FALSE;
     }
@@ -490,7 +490,7 @@ boolean HandleConnection(CSocket *socket) {
     // gets the same cross-site protection as /api/fs/save above.
     char recursive[4];
     if (webhttp::QueryParam(query, "recursive", recursive, sizeof(recursive)) &&
-        !HasHeader(request, "x-bmmac-web:")) {
+        !HasHeader(request, "x-bmmacintosh-web:")) {
       SendText(socket, 403, "Forbidden", "missing X-BMMacintosh-Web header\n");
       return FALSE;
     }
@@ -501,7 +501,7 @@ boolean HandleConnection(CSocket *socket) {
   if (is_post && (strcmp(target, "/api/fs/mkdir") == 0 ||
                   strcmp(target, "/api/fs/rename") == 0)) {
     // Same cross-site protection as /api/fs/save above.
-    if (!HasHeader(request, "x-bmmac-web:")) {
+    if (!HasHeader(request, "x-bmmacintosh-web:")) {
       SendText(socket, 403, "Forbidden", "missing X-BMMacintosh-Web header\n");
       return FALSE;
     }
@@ -532,7 +532,7 @@ boolean HandleConnection(CSocket *socket) {
                   strcmp(target, "/api/shutdown") == 0)) {
     // Same cross-site protection as /api/fs/save: another site must not be
     // able to restart or power off the machine.
-    if (!HasHeader(request, "x-bmmac-web:")) {
+    if (!HasHeader(request, "x-bmmacintosh-web:")) {
       SendText(socket, 403, "Forbidden", "missing X-BMMacintosh-Web header\n");
       return FALSE;
     }

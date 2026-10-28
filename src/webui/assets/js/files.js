@@ -13,6 +13,7 @@ import { canRun } from "./machine.js";
 let fbVol = "SD";
 let fbPath = "/";
 let fbNames = new Set(); // file names in the current folder (for overwrite checks)
+let fbProtected = new Set(); // of those, the ones uploads may not replace
 
 const FILE_ICONS = {
   dsk: "▣", do: "▣", po: "▣", nib: "▣", woz: "▣", "2mg": "▣", "2img": "▣",
@@ -160,6 +161,7 @@ export async function loadDir(path) {
     return a.name.toLowerCase().localeCompare(b.name.toLowerCase());
   });
   fbNames = new Set(entries.filter((e) => !e.dir).map((e) => e.name));
+  fbProtected = new Set(entries.filter((e) => !e.dir && e.protected).map((e) => e.name));
 
   const tbody = $("fb-rows");
   const frag = document.createDocumentFragment();
@@ -379,6 +381,19 @@ function setUploading(busy) {
 async function uploadFiles(fileList) {
   const files = Array.from(fileList || []);
   if (!files.length || uploading) return;
+
+  // The device refuses to replace its own config files by upload; they are
+  // changed in the editor instead.
+  const refused = files.filter((f) => fbProtected.has(f.name));
+  if (refused.length) {
+    $("fb-status").className = "msg err";
+    $("fb-status").textContent = refused.map((f) => f.name).join(", ") +
+      " can't be replaced by uploading: open " +
+      (refused.length === 1 ? "it" : "them") + " here and edit, then Save.";
+    $("fb-upload").value = "";
+    $("fb-drop-file").value = "";
+    return;
+  }
 
   const clashes = files.filter((f) => fbNames.has(f.name));
   if (clashes.length && !confirm(

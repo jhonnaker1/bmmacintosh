@@ -198,6 +198,17 @@ downs() {
     for ((i = 0; i < $1; i++)); do key $DOWN $(($2 + i * 4)); done
 }
 
+echo "The web UI's pages and the Pi's web server"
+# The server (Pi only) refuses saves and shutdowns without the header the
+# pages send, so the two names must stay the same.
+sent=$(grep -o '"X-[A-Za-z]*-Web"' "$ROOT/src/webui/assets/js/api.js" | tr -d '"' | tr 'A-Z' 'a-z')
+if [ -n "$sent" ] && grep -q "HasHeader(request, \"$sent:\")" "$ROOT/src/webui/webui.cpp" \
+   && ! grep "HasHeader(request, \"x-" "$ROOT/src/webui/webui.cpp" | grep -vq "\"$sent:\""; then
+    pass "webui: the server checks the header the pages send ($sent)"
+else
+    fail webui "the pages send ${sent:-no header}, which src/webui/webui.cpp doesn't check for"
+fi
+
 echo "No ROM: both say what's missing"
 mkdir -p "$OUT/norom_ii" "$OUT/norom_plus"
 ln -s "$OUT/empty" "$OUT/norom_ii/roms"
@@ -241,6 +252,15 @@ mkdir -p "$OUT/iiboot2"
 cp "$OUT/iiboot/macii.prefs" "$OUT/iiboot2/"
 run "$II" iiboot2 60 "" '600 shot a.ppm\n601 quit\n'
 question iiboot2 a
+
+echo "The bigger screens (Apple's monitors' sizes)"
+for size in 832x624 1152x870 1280x1024; do
+    mkdir -p "$OUT/ii$size"
+    printf 'screen win/%s/%s\n' "${size%x*}" "${size#*x}" > "$OUT/ii$size/macii.prefs"
+    run "$II" "ii$size" 60 "" '400 shot a.ppm\n401 quit\n'
+    check_log "ii$size" "Mac screen $size, VDEPTH_8BIT" "a $size screen"
+    question "ii$size" a
+done
 
 echo "On a 50 Hz display"
 run "$II" iitimer 50 "" '600 shot a.ppm\n900 audio\n901 quit\n'
