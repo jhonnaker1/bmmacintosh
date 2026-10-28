@@ -28,6 +28,7 @@
 
 prefs_desc platform_prefs_items[] = {
 	{"idlewait", TYPE_BOOLEAN, false, "sleep when idle"},
+	{"nonet", TYPE_BOOLEAN, false, "no network for the Mac (ether_ii.cpp)"},
 	{NULL, TYPE_END, false, NULL}
 };
 
@@ -49,6 +50,7 @@ void AddPlatformPrefsDefaults(void)
 	PrefsReplaceInt32("displaycolordepth", 8);
 	PrefsReplaceInt32("frameskip", 0);
 	PrefsReplaceBool("idlewait", false);
+	PrefsReplaceBool("nonet", false);
 }
 
 void LoadPrefs(const char *vmdir)

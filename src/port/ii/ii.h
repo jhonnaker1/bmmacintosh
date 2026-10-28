@@ -31,4 +31,8 @@ void ii_adb_frame(void);
    floppy drives and a CD-ROM drive, empty), before InitAll(). */
 void ii_prepare_drives(void);
 
+/* ether_ii.cpp: the Ethernet interrupt when slirp has frames for the Mac
+   (each tick). */
+void ii_ether_tick(void);
+
 #endif /* BMMAC_II_H_ */

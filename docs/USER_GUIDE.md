@@ -213,6 +213,29 @@ The web UI is open to anyone on your network. To protect it with a PIN, set
 `webui_pin=1234` in `cmdline.txt`; the browser then asks for a user name
 (anything) and the PIN. To network without the web UI, set `webui=0`.
 
+### The Mac II on the network
+
+With the Pi on the network, the Mac II is too: its Ethernet card is
+connected to a small network of its own inside BMMacintosh (slirp, as in
+Basilisk II and QEMU), which reaches the internet through the Pi's
+connection, Ethernet or Wi-Fi. In Mac OS, open the *TCP/IP* control panel,
+connect via *Ethernet*, configure *Using DHCP Server*, and close it to
+save: the Mac gets the address 10.0.2.15, with 10.0.2.2 its router and
+10.0.2.3 its DNS server (which asks the Pi's). Open Transport loads TCP/IP
+only when a program asks for it; to have it at once, *Edit*, *User Mode*,
+*Advanced*, then *Options* and untick *Load only when needed*.
+
+The Mac's programs can then connect out (web browsers, FTP, mail, news):
+their connections leave from the Pi's address. Nothing on your network
+can connect to the Mac, there's no AppleTalk (so no file sharing or
+printing to other Macs), and ping doesn't get past the Pi. Old browsers
+can't open most of today's web sites, which need newer encryption than
+they have.
+
+The Mac starts with the network up (the log says "the Mac's network is
+up" once the Pi has its address). To leave it off, add `nonet true` to
+`macii.prefs`. The Mac Plus has no network.
+
 The network also sets the Pi's clock, so files saved on the card get the
 right date and time. Set `timezone` to your offset from UTC in minutes, for
 example `timezone=600` for UTC+10. Both Macs' clocks are the Pi's, in that

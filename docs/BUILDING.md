@@ -164,6 +164,7 @@ with `tools/gen_webui_assets.py` whenever an asset changes.
 | `src/main.cpp`, `kernel.*`   | Circle kernel; USB, GPIO, SD card, cores    |
 | `src/network.*`              | Ethernet / Wi-Fi start up (from BMC64)      |
 | `src/network_time_sync.*`    | Clock from the network (from BMC64)         |
+| `src/slirp_sockets.cpp`      | The Mac II network's sockets (slirp's), on Circle's |
 | `src/webui/`                 | Web UI server, file manager and pages (from BMC64) |
 | `src/sdcard/`                | SD card helpers used by the web UI (from BMC64) |
 | `src/fbl.*`, `crt_pi_*`      | Display layer and CRT shaders (from BMC64)  |

@@ -4,10 +4,11 @@
 # They come unmodified from the third_party/macemu submodule
 # (kanjitalk755's macemu, BasiliskII/src): the emulator's portable part
 # with the CPU core it uses on ARM (uae_cpu_2021: the UAE 68040 with
-# direct addressing, the "uae" FPU, no JIT), and the dummy serial,
-# Ethernet, SCSI and clipboard drivers. Not the Unix, SDL or other front
-# ends, SLIRP or the JIT; src/port/ii/ is BMMacintosh's front end
-# (B2_PORT_SRCS), with its own ExtFS for the SD card (from the Unix one).
+# direct addressing, the "uae" FPU, no JIT), the dummy serial, SCSI and
+# clipboard drivers, and slirp for the network (B2_SLIRP_SRCS, with
+# src/port/ii/slirp/config.h). Not the Unix, SDL or other front ends or
+# the JIT; src/port/ii/ is BMMacintosh's front end (B2_PORT_SRCS), with its
+# own ExtFS for the SD card (from the Unix one) and Ethernet driver.
 #
 # The CPU core's tables and opcode handlers are written by two programs
 # built for the computer doing the build, build68k and gencpu, as Basilisk
@@ -46,7 +47,6 @@ B2_CORE_SRCS = \
 	user_strings.cpp \
 	slot_rom.cpp \
 	dummy/clip_dummy.cpp \
-	dummy/ether_dummy.cpp \
 	dummy/serial_dummy.cpp \
 	dummy/scsi_dummy.cpp \
 	dummy/prefs_editor_dummy.cpp \
@@ -79,7 +79,16 @@ B2_PORT_SRCS = \
 	timer_ii.cpp \
 	prefs_ii.cpp \
 	menu_ii.cpp \
-	extfs_ii.cpp
+	extfs_ii.cpp \
+	ether_ii.cpp
+
+# slirp, as Basilisk II's Unix build has it (configure.ac). Not all
+# warning free either, and it needs -fno-strict-aliasing (as there).
+B2_SLIRP_SRCS = \
+	bootp.c cksum.c debug.c if.c ip_icmp.c ip_input.c ip_output.c \
+	mbuf.c misc.c sbuf.c slirp.c socket.c tcp_input.c tcp_output.c \
+	tcp_subr.c tcp_timer.c tftp.c udp.c
+B2_SLIRP_CFLAGS = -w -fno-strict-aliasing -I $(SRCROOT)src/port/ii/slirp -I $(B2)/slirp
 
 # Basilisk II's options for ARM (Unix/configure.ac): the newer UAE core
 # (UPDATE_UAE) and its FPU. Its sources aren't all warning free: -w.

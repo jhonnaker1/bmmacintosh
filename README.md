@@ -43,6 +43,9 @@ it available; see the [third-party](docs/THIRD_PARTY.md) acknowledgements.
   a hard disk's volume on the Mac Plus. Written in place, so the Pi can be switched off at any time
 - On the Mac II, a folder on the card (`shared`) is a disk on the Mac's
   desktop, *SD Card*: copy files to it from a PC, or from the web UI
+- On the Mac II, the network: with the Pi on Ethernet or Wi-Fi, Mac OS's
+  TCP/IP (set to DHCP) reaches the internet through the Pi, as QEMU's user
+  networking does (slirp)
 - Frames locked to the display's refresh, the Mac's 60.15 Hz (the Pi 4 and
   5 switch the display to it), with the sound kept in step
 - USB keyboards (Alt is Command, the Windows key Option), USB mice, and
@@ -145,7 +148,8 @@ src/port/keymap.c          USB keys to the Mac's key codes
 src/port/menu.c, osd.c     The menu
 src/port/machine.c         Switching Macs: config.txt's kernel= lines
 src/port/roms.c            The ROMs on the card, MAME's zips too
-src/port/ii/               Basilisk II's front end: memory, video, sound, disks, ExtFS
+src/port/ii/               Basilisk II's front end: memory, video, sound, disks, ExtFS, Ethernet
+src/slirp_sockets.cpp      The Mac II network's sockets, on Circle's
 src/port/plus/             umac's front end
 third_party/macemu         Basilisk II (submodule, kanjitalk755's macemu)
 third_party/umac           umac and Musashi (submodule)
@@ -165,5 +169,6 @@ built, as in their own builds.
 BMMacintosh is free software under the GNU General Public License version 3;
 see [LICENSE](LICENSE). It includes software from other projects under
 their own licences (Basilisk II under the GPL version 2 or later, umac and
-Musashi under the MIT licence, zlib under its own); see
+Musashi under the MIT licence, slirp under BSD and MIT licences, zlib
+under its own); see
 [docs/THIRD_PARTY.md](docs/THIRD_PARTY.md).

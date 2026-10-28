@@ -10,10 +10,15 @@ of its own.
   kanjitalk755's macemu, with its ARM CPU core (uae_cpu_2021: a 68040 with
   an FPU), direct addressing, 8 to 256 MB, screens of 640x480 to 1024x768
   in black and white to millions of colours, sound, and its tick, sound and
-  disks driven from the frame loop (no threads, VOSF, JIT or network yet).
+  disks driven from the frame loop (no threads, VOSF or JIT).
   Where the Mac reads or writes memory it doesn't have, it reads 0 and its
   writes are dropped, as Basilisk II on Unix skips them
-- Hard disk images (raw or with an Apple partition map), two floppy drives
+- The Mac II's network: Basilisk II's slirp, in the background, through
+  the Pi's Ethernet or Wi-Fi (DHCP gives the Mac 10.0.2.15; its TCP and
+  UDP go out from the Pi's address), on Circle's own sockets on the Pi,
+  which connect without holding up the Mac
+- Hard disk images (raw or with an Apple partition map, up to 4 GB: read
+  and written through FatFs itself, past newlib's 2 GB seek), two floppy drives
   and a CD-ROM drive that take images while the Mac runs, and the card's
   `shared` folder as a disk on the Mac's desktop (ExtFS, on FAT)
 - The Mac Plus (`macplus*.img`, every Pi): umac by Matt Evans with Musashi,

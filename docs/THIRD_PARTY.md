@@ -10,6 +10,8 @@ BMMacintosh's Mac II kernels incorporate [Basilisk II](https://basilisk.cebix.ne
 
 Its 68040 CPU core (`uae_cpu_2021`, the one Basilisk II's build uses on ARM) is ARAnyM's, from UAE by Bernd Schmidt and others, with its floating point emulation, under the same licence. BMMacintosh's front end (`src/port/ii/`) follows Basilisk II's Unix front end (`src/Unix/`), and `src/port/ii/extfs_ii.cpp` is its `extfs_unix.cpp` changed for the SD card.
 
+The Mac II's network is Basilisk II's copy of slirp (`BasiliskII/src/slirp`), by Danny Gasparovski, with TCP/IP code from 4.4BSD by the Regents of the University of California and changes from QEMU by Fabrice Bellard and Magnus Damm: under slirp's own two-clause licence, the University of California's three-clause BSD licence and the MIT licence. BMMacintosh compiles it unmodified, with its own `config.h` (`src/port/ii/slirp/`) and, on the Pi, its own sockets on Circle's (`src/slirp_sockets.cpp`). Its notices are in [`sdcard/licenses/slirp.txt`](../sdcard/licenses/slirp.txt).
+
 Its notice is in [`sdcard/licenses/basilisk2.txt`](../sdcard/licenses/basilisk2.txt) and the GNU General Public License version 2 in [`sdcard/licenses/GPL-2.0.txt`](../sdcard/licenses/GPL-2.0.txt).
 
 ## umac and Musashi

@@ -214,6 +214,7 @@ static void one_tick(void)
 		SetInterruptFlag(INTFLAG_60HZ);
 		TriggerInterrupt();
 	}
+	ii_ether_tick();
 }
 
 /* More instructions a frame while they fit in 80% of its time, fewer when

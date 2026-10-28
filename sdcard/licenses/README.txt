@@ -7,6 +7,8 @@ projects; this folder has their notices and licences:
 
   basilisk2.txt   Basilisk II, the Mac II and Quadra emulator (GPL
                   version 2 or later).
+  slirp.txt       slirp, the Mac II's network (its own licence, BSD,
+                  MIT).
   umac.txt        umac, the Mac Plus emulator (MIT; its parts from
                   Basilisk II GPL version 2 or later).
   musashi.txt     Musashi, umac's 68000 (MIT), with the SoftFloat notice

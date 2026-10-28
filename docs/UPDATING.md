@@ -14,6 +14,8 @@ maintained Basilisk II and SheepShaver. BMMacintosh builds
 | `src/port/ii/main_ii.cpp` | Its `main_unix.cpp`: memory, the ROM, `InitAll()`, `Start680x0()`, and the frame loop in `cpu_do_check_ticks()` |
 | `src/port/ii/video_ii.cpp`, `audio_ii.cpp`, `sys_ii.cpp`, `timer_ii.cpp`, `prefs_ii.cpp` | The platform functions Basilisk II calls (its `video_*.cpp`, `audio_*.cpp`, `sys_unix.cpp`, `timer_unix.cpp`, `prefs_unix.cpp`, `xpram_unix.cpp`) |
 | `src/port/ii/extfs_ii.cpp` | Its `Unix/extfs_unix.cpp`, changed for the SD card's FAT |
+| `src/port/ii/ether_ii.cpp` | Its `Unix/ether_unix.cpp`'s slirp parts: the Ethernet driver's platform functions, with slirp in the background |
+| `src/port/ii/slirp/`, `src/slirp_sockets.cpp` | What slirp (`BasiliskII/src/slirp`) asks of the system: its `config.h`; on the Pi, the socket calls it makes, renamed (`circle_sockets.h`) to ones on Circle's sockets, and the headers newlib lacks (`circle/sys/`). A new slirp calling other system functions shows as a link error for the Pi |
 
 1. Fetch and check out the new commit:
 

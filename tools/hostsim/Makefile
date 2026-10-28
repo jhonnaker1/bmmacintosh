@@ -37,7 +37,8 @@ COMMON_OBJS := $(addprefix $(OUT)/port/,$(COMMON_SRCS:.c=.o)) \
 B2_OBJS := $(addprefix $(OUT)/b2/,$(B2_CORE_SRCS:.cpp=.o)) \
            $(addprefix $(GEN)/,$(B2_GEN_SRCS:.cpp=.o)) \
            $(foreach n,$(B2_CPUEMU_PARTS),$(GEN)/cpuemu$(n).o) \
-           $(addprefix $(OUT)/port/ii/,$(B2_PORT_SRCS:.cpp=.o))
+           $(addprefix $(OUT)/port/ii/,$(B2_PORT_SRCS:.cpp=.o)) \
+           $(addprefix $(OUT)/slirp/,$(B2_SLIRP_SRCS:.c=.o))
 B2_FLAGS = $(CFLAGS) $(B2_CXXFLAGS) $(B2_INCLUDES) -I $(GEN)
 
 # ---- umac -----------------------------------------------------------------------
@@ -98,6 +99,10 @@ $(OUT)/port/ii/%.o: $(ROOT)/src/port/ii/%.cpp $(ROOT)/src/port/ii/ii.h \
                     $(ROOT)/src/port/ii/sysdeps.h $(ROOT)/src/port/bmmac.h $(ROOT)/src/port/osd.h $(GEN)/cputbl.h
 	@mkdir -p $(dir $@)
 	$(CXX) $(B2_FLAGS) -c -o $@ $<
+
+$(OUT)/slirp/%.o: $(B2)/slirp/%.c $(ROOT)/src/port/ii/slirp/config.h
+	@mkdir -p $(dir $@)
+	@$(CC) $(CFLAGS) $(B2_SLIRP_CFLAGS) -c -o $@ $<
 
 # Musashi's opcode handlers, written by its m68kmake from m68k_in.c.
 $(GEN)/m68kmake: $(MUSASHI)/m68kmake.c
