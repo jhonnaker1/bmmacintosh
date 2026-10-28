@@ -377,6 +377,41 @@ if [ -n "${BMMAC_PLUS_DISK:-}" ] && [ -f "$BMMAC_PLUS_DISK" ]; then
     else
         fail plussystem "no valid macplus.pram (the clock chip)"
     fi
+
+    echo "The same floppy as a DiskCopy 4.2 image"
+    mkdir -p "$OUT/plusdc42"
+    python3 - "$BMMAC_PLUS_DISK" "$OUT/plusdc42/system.image" <<'EOF2'
+import struct, sys
+data = open(sys.argv[1], 'rb').read()
+def checksum(b):
+    s = 0
+    for i in range(0, len(b), 2):
+        s = (s + (b[i] << 8 | b[i + 1])) & 0xffffffff
+        s = (s >> 1 | s << 31) & 0xffffffff
+    return s
+name = b'System'
+head = bytes([len(name)]) + name.ljust(63, b'\0')
+head += struct.pack('>IIII', len(data), 0, checksum(data), 0) + bytes([1, 0x22, 1, 0])
+open(sys.argv[2], 'wb').write(head + data)
+EOF2
+    run "$PLUS" plusdc42 60 "plus_disk=$OUT/plusdc42/system.image" '2400 shot a.ppm\n2401 quit\n'
+    check_log plusdc42 "disk .*system\.image, 800 KB, DiskCopy 4\.2" "the DiskCopy header is skipped"
+    finder plusdc42 a
+    if python3 - "$OUT/plusdc42/system.image" <<'EOF2'
+import struct, sys
+d = open(sys.argv[1], 'rb').read()
+size, _, stored = struct.unpack('>III', d[64:76])
+s = 0
+for i in range(84, 84 + size, 2):
+    s = (s + (d[i] << 8 | d[i + 1])) & 0xffffffff
+    s = (s >> 1 | s << 31) & 0xffffffff
+sys.exit(s != stored)
+EOF2
+    then
+        pass "plusdc42: its checksum is right after the Mac wrote to it"
+    else
+        fail plusdc42 "the DiskCopy checksum doesn't match the data"
+    fi
 else
     skip "System from a floppy (no BMMAC_PLUS_DISK)"
 fi

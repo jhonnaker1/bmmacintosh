@@ -23,7 +23,9 @@ of its own.
   its keyboard with the arrow keys and keypad (the Instant command umac
   doesn't answer, answered in front of it), and a locking Caps Lock; its
   clock chip, with the Pi's time and its parameter RAM kept on the card
-  (`macplus.pram`)
+  (`macplus.pram`); DiskCopy 4.2 images (their checksum kept right); its
+  sound at the volume and from the buffer the Mac chooses, and off when
+  the Mac switches it off
 - Switching Macs from the menu (Machine), which rewrites `config.txt`'s
   `kernel=` lines and restarts the Pi, as BMC64 switched machines
 - The user's own ROMs, as files or as MAME's zipped sets (whose chips are

@@ -42,10 +42,10 @@ The Macs start from disk images in the disks folder (or anywhere on the
 card): Apple's system software isn't free either. In the menu, Hard Disks
 (Mac II) or Disk (Mac Plus), then Restart the Mac.
 
-  - Raw disk images (.dsk, .img, .hda, .hfv): a floppy's (400K, 800K) or
-    a hard disk's. The Mac II also takes DiskCopy 4.2 floppy images and
-    hard disks with an Apple partition map; the Mac Plus needs the HFS
-    volume alone.
+  - Disk images (.dsk, .img, .image, .hda, .hfv): a floppy's (400K,
+    800K), raw or DiskCopy 4.2, or a hard disk's. The Mac II also takes
+    hard disks with an Apple partition map; the Mac Plus needs a hard
+    disk's HFS volume alone.
   - MAME's hard disks are CHD files, which BMMacintosh can't read: MAME's
     chdman makes them raw, and so does
 

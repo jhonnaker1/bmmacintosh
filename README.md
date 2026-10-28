@@ -39,8 +39,8 @@ it available; see the [third-party](docs/THIRD_PARTY.md) acknowledgements.
 
 - Disk images on the SD card: hard disks (raw, or with an Apple partition
   map), floppies (raw 400K, 800K and 1.4 MB, and DiskCopy 4.2) and CD-ROMs
-  (`.iso`, `.toast`) on the Mac II; a raw floppy or hard disk image on the
-  Mac Plus. Written in place, so the Pi can be switched off at any time
+  (`.iso`, `.toast`) on the Mac II; a floppy image (raw or DiskCopy 4.2) or
+  a hard disk's volume on the Mac Plus. Written in place, so the Pi can be switched off at any time
 - On the Mac II, a folder on the card (`shared`) is a disk on the Mac's
   desktop, *SD Card*: copy files to it from a PC, or from the web UI
 - Frames locked to the display's refresh, the Mac's 60.15 Hz (the Pi 4 and

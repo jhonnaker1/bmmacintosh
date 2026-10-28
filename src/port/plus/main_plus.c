@@ -12,9 +12,9 @@
  * (and the one second interrupt each second); bmmac_frame() shows it.
  *
  * The screen is 512x342 in black and white, at the top of RAM, and the
- * sound buffer above it: 370 bytes a frame (22.25 kHz), played as they are
- * (umac doesn't tell the VIA's volume or sound switch, so silence is
- * whatever doesn't change: a constant is taken out).
+ * sound buffer above it: 370 bytes a frame (22.25 kHz), played at the
+ * volume the VIA sets (silence is whatever doesn't change: a constant is
+ * taken out).
  *
  * The keyboard is the Plus's, with its keypad and arrow keys (see
  * Keyboard and mouse below): umac takes one key at a time, which is fed it every
@@ -74,11 +74,29 @@ static unsigned ram_kb(void)
 
 /* ---- The disk ------------------------------------------------------------------ */
 
+/* A raw image, or a DiskCopy 4.2 one: an 84-byte header (the disk's name,
+   the data's and the tags' sizes and checksums, the format) before the
+   data, and the tags after it. The Mac reads and writes the data; after it
+   has written, the data's checksum in the header is made right again
+   (when the disk is synced), so DiskCopy and other emulators still take
+   the image. */
+#define DC42_HEADER 84
+
+static long disk_start;          /* the data's place in the file */
+static unsigned disk_size;       /* the data's size */
+static int disk_dc42;
+static int disk_written;
+
+static uint32_t be32(const uint8_t *p)
+{
+	return (uint32_t) p[0] << 24 | (uint32_t) p[1] << 16 | (uint32_t) p[2] << 8 | p[3];
+}
+
 static int disk_read(void *ctx, uint8_t *data, unsigned int offset, unsigned int len)
 {
 	(void) ctx;
 	bmmac_disk_accessed();
-	if (disk == NULL || fseek(disk, (long) offset, SEEK_SET) != 0
+	if (disk == NULL || fseek(disk, disk_start + (long) offset, SEEK_SET) != 0
 	    || fread(data, 1, len, disk) != len)
 		return -1;
 	return 0;
@@ -88,27 +106,68 @@ static int disk_write(void *ctx, uint8_t *data, unsigned int offset, unsigned in
 {
 	(void) ctx;
 	bmmac_disk_accessed();
-	if (disk == NULL || disk_read_only || fseek(disk, (long) offset, SEEK_SET) != 0
+	if (disk == NULL || disk_read_only || fseek(disk, disk_start + (long) offset, SEEK_SET) != 0
 	    || fwrite(data, 1, len, disk) != len)
 		return -1;
+	disk_written = TRUE;
 	return 0;
+}
+
+/* DiskCopy's checksum of the data: each big endian word added, and the
+   sum rotated right a bit. */
+static void dc42_update_checksum(void)
+{
+	static uint8_t buf[4096];
+	uint32_t sum = 0, left = disk_size;
+	uint8_t out[4];
+	if (fseek(disk, disk_start, SEEK_SET) != 0)
+		return;
+	while (left > 0) {
+		uint32_t n = left > sizeof buf ? sizeof buf : left, i;
+		if (fread(buf, 1, n, disk) != n)
+			return;
+		for (i = 0; i + 1 < n; i += 2) {
+			sum += (uint32_t) buf[i] << 8 | buf[i + 1];
+			sum = sum >> 1 | sum << 31;
+		}
+		left -= n;
+	}
+	out[0] = (uint8_t) (sum >> 24);
+	out[1] = (uint8_t) (sum >> 16);
+	out[2] = (uint8_t) (sum >> 8);
+	out[3] = (uint8_t) sum;
+	if (fseek(disk, 72, SEEK_SET) == 0)
+		fwrite(out, 1, 4, disk);
 }
 
 static void close_disk(void)
 {
 	if (disk != NULL) {
+		if (disk_dc42 && disk_written)
+			dc42_update_checksum();
 		fflush(disk);
 		fclose(disk);
 	}
 	disk = NULL;
+	disk_written = FALSE;
 }
 
-/* The disk image in bmmac.cfg, read and written in place: a raw image (not
-   DiskCopy 4.2), a floppy's or a hard disk's. When the Mac ejects it, umac
-   leaves the drive empty until the Mac restarts. */
+/* Is the file (SIZE bytes, starting with HEAD) a DiskCopy 4.2 image? Its
+   header's sizes add up to the file's, and its last word is 0x0100. */
+static int is_dc42(const uint8_t *head, long size)
+{
+	uint32_t data = be32(head + 64), tags = be32(head + 68);
+	return head[0] < 64 && head[82] == 1 && head[83] == 0 && data > 0
+	    && (data & 0x1ff) == 0 && (long) (DC42_HEADER + data + tags) == size;
+}
+
+/* The disk image in bmmac.cfg, read and written in place: a floppy's or a
+   hard disk's, raw or DiskCopy 4.2. When the Mac ejects it, umac leaves
+   the drive empty until the Mac restarts. */
 static int open_disk(disc_descr_t *d)
 {
 	const char *path = setting("plus_disk");
+	uint8_t head[DC42_HEADER];
 	struct stat st;
 	close_disk();
 	if (path[0] == '\0')
@@ -124,14 +183,23 @@ static int open_disk(disc_descr_t *d)
 		close_disk();
 		return FALSE;
 	}
+	disk_start = 0;
+	disk_size = (unsigned) st.st_size;
+	disk_dc42 = FALSE;
+	if (st.st_size > DC42_HEADER && fread(head, 1, sizeof head, disk) == sizeof head
+	    && is_dc42(head, (long) st.st_size)) {
+		disk_dc42 = TRUE;
+		disk_start = DC42_HEADER;
+		disk_size = be32(head + 64);
+	}
 	d->base = NULL;
-	d->size = (unsigned int) st.st_size;
+	d->size = disk_size;
 	d->read_only = disk_read_only;
 	d->op_ctx = NULL;
 	d->op_read = disk_read;
 	d->op_write = disk_write;
-	printf("BMMacintosh: disk %s, %u KB%s\n", path, (unsigned) (st.st_size / 1024),
-	       disk_read_only ? ", read only" : "");
+	printf("BMMacintosh: disk %s, %u KB%s%s\n", path, disk_size / 1024,
+	       disk_dc42 ? ", DiskCopy 4.2" : "", disk_read_only ? ", read only" : "");
 	return TRUE;
 }
 
@@ -145,8 +213,13 @@ void umac_disc_ejected(void)
 
 void emu_sync_disks(void)
 {
-	if (disk != NULL)
+	if (disk != NULL) {
+		if (disk_dc42 && disk_written) {
+			disk_written = FALSE;
+			dc42_update_checksum();
+		}
 		fflush(disk);
+	}
 	plus_rtc_save();
 }
 
@@ -311,16 +384,28 @@ static void answer_instant(void)
 	instant_byte = -1;
 }
 
-/* Port B: umac's mouse and sound lines, and the clock chip's
-   (rtc_plus.c), which umac leaves alone. */
+/* Port B: umac's mouse lines, the sound's switch (bit 7, set: off) and
+   the clock chip's (rtc_plus.c), which umac leaves alone. Port A: the
+   sound's volume (bits 0-2) and buffer (bit 3, set: the main one), which
+   umac leaves alone too. */
 static void (*umac_rb_change)(uint8_t val);
 static uint8_t (*umac_rb_in)(void);
+static void (*umac_ra_change)(uint8_t val);
+static uint8_t sound_portb, sound_porta = 0x0f;
 
 static void plus_rb_change(uint8_t val)
 {
+	sound_portb = val;
 	plus_rtc_portb(val);
 	if (umac_rb_change != NULL)
 		umac_rb_change(val);
+}
+
+static void plus_ra_change(uint8_t val)
+{
+	sound_porta = val;
+	if (umac_ra_change != NULL)
+		umac_ra_change(val);
 }
 
 static uint8_t plus_rb_in(void)
@@ -338,6 +423,10 @@ void plus_via_init(struct via_cb *cb)
 	umac_sr_tx = cb->sr_tx;
 	umac_rb_change = cb->rb_change;
 	umac_rb_in = cb->rb_in;
+	umac_ra_change = cb->ra_change;
+	mine.ra_change = plus_ra_change;
+	sound_porta = 0x0f;
+	sound_portb = 0;
 	mine.sr_tx = plus_sr_tx;
 	mine.rb_change = plus_rb_change;
 	mine.rb_in = plus_rb_in;
@@ -389,10 +478,12 @@ int emu_screen_copy(uint16_t *fb, int pitch_px, int force)
 	return copied;
 }
 
-/* The Plus's sound buffer: 370 words below the top of RAM, the sample in
-   each word's high byte. */
+/* The Plus's sound buffers: 370 words below the top of RAM (the main
+   one) or 0x5f00 below it (the alternate one, which port A's bit 3
+   chooses), the sample in each word's high byte. */
 #define SOUND_SAMPLES 370
 #define SOUND_OFFSET 0x300
+#define SOUND_OFFSET_ALT 0x5f00
 
 static void play_sound(void)
 {
@@ -400,9 +491,13 @@ static void play_sound(void)
 	static double dc;
 	unsigned rate = bmmac_sound_rate(), n, i;
 	const uint8_t *buf;
+	int volume;
 	if (rate == 0 || ram == NULL)
 		return;
-	buf = ram + umac_memsize_kb * 1024 - SOUND_OFFSET;
+	buf = ram + umac_memsize_kb * 1024
+	      - ((sound_porta & 0x08) ? SOUND_OFFSET : SOUND_OFFSET_ALT);
+	/* The volume, 0-7; the switch off is silence. */
+	volume = (sound_portb & 0x80) ? 0 : sound_porta & 7;
 	/* A frame's 370 samples (22.25 kHz) at the output's rate. */
 	n = (unsigned) (rate / FRAME_HZ + 0.5);
 	if (n > 1200)
@@ -413,7 +508,7 @@ static void play_sound(void)
 		int s;
 		/* What doesn't change is silence. */
 		dc += (v - dc) * 0.002;
-		s = (int) ((v - dc) * 160.0);
+		s = (int) ((v - dc) * 160.0 * volume / 7);
 		if (s > 32767)
 			s = 32767;
 		if (s < -32768)
@@ -454,7 +549,9 @@ double emu_frame_rate(void)
 
 const char *const *emu_run_types(void)
 {
-	static const char *const types[] = {"dsk", "img", "image", "hfv", "hda", NULL};
+	static const char *const types[] = {
+		"dsk", "img", "image", "hfv", "hda", "dc42", "diskcopy", NULL
+	};
 	return types;
 }
 
@@ -554,7 +651,9 @@ void emu_main(void)
 
 enum { I_DISK = 100, I_EJECT, I_ROM, I_MEMORY, I_RESTART };
 
-static const char *const disk_exts[] = {"dsk", "img", "image", "hfv", "hda", NULL};
+static const char *const disk_exts[] = {
+	"dsk", "img", "image", "hfv", "hda", "dc42", "diskcopy", NULL
+};
 
 static void rom_menu(void)
 {

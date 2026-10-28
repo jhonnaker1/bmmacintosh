@@ -78,8 +78,9 @@ files keep their type and creator, and their resource forks, in `.finf`
 and `.rsrc` folders next to them; characters FAT can't have in a name are
 written `%XX` on the card.
 
-**Mac Plus.** *Disk* in the menu chooses its disk (a raw floppy image, or
-a hard disk's HFS volume), and the Mac starts again from it. *No Disk*
+**Mac Plus.** *Disk* in the menu chooses its disk (a floppy image, raw or
+DiskCopy 4.2, or a hard disk's HFS volume), and the Mac starts again from
+it. A DiskCopy image's checksum is kept right as the Mac writes to it. *No Disk*
 takes it out. When the Mac ejects its disk the drive stays empty until
 the Mac restarts.
 
