@@ -105,8 +105,8 @@ is how to get past an extension that stops it: Mac OS 8.1 from MAME's
 | F11, Insert              | Help (Mac II)                                     |
 | The power key            | Shut Down (the Pi 400's Fn+F10)                   |
 
-The Mac Plus's keyboard has its main keys only (no arrow keys or keypad,
-which umac doesn't have yet).
+The Mac Plus's keyboard is the Plus's, with its arrow keys and keypad (it
+has no Control or Escape keys).
 
 Gamepads move the mouse: the left stick or D-pad moves the pointer, **A**
 clicks, **X** types Space and **Y** Return. **Home**, or **Select+Start**

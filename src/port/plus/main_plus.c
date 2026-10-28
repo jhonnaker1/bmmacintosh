@@ -16,9 +16,9 @@
  * (umac doesn't tell the VIA's volume or sound switch, so silence is
  * whatever doesn't change: a constant is taken out).
  *
- * The keyboard is the Plus's (the main keys; umac's keyboard has no
- * arrow keys or keypad): umac takes one key at a time, which is fed it
- * every other frame. The disk is read and written in place on the SD card.
+ * The keyboard is the Plus's, with its keypad and arrow keys (see
+ * Keyboard and mouse below): umac takes one key at a time, which is fed it every
+ * other frame. The disk is read and written in place on the SD card.
  * Settings (plus_rom, plus_ram, plus_disk) are in bmmac.cfg.
  *
  * This file is part of BMMacintosh, a bare metal 68k Macintosh emulator for
@@ -149,56 +149,175 @@ void emu_sync_disks(void)
 
 /* ---- Keyboard and mouse --------------------------------------------------------- */
 
-#define KEY_QUEUE 32
+/* The Mac Plus's keyboard (the M0110A): the Mac asks it for a key with an
+   Inquiry command, and it answers with the key's transition, the Mac's key
+   code shifted left with bit 0 set (bit 7 set for a release). A keypad or
+   arrow key answers 0x79 instead, and the Mac then asks with an Instant
+   command for the keypad's own code; the keypad's + * / and = keys also
+   send a Shift press before (and a Shift release after), as on the real
+   keyboard. umac answers Inquiry (one key at a time, umac_kbd_event()) but
+   not Instant: plus_via_init() puts BMMacintosh's answer in front of it.
 
-static uint8_t key_queue[KEY_QUEUE];
+   The keypad codes are the M0110A's (as documented for TMK's converter):
+   https://github.com/tmk/tmk_keyboard/wiki/Apple-M0110-Keyboard-Protocol */
+
+#define KEY_QUEUE 64
+#define KBD_INSTANT_A 0x14   /* Instant: Inside Macintosh's number... */
+#define KBD_INSTANT_B 0x12   /* ...and TMK's */
+#define KBD_KEYPAD 0x79
+#define KBD_NULL 0x7b
+#define KBD_SHIFT 0x71
+
+struct key_event {
+	uint8_t inquiry;     /* the answer to Inquiry (bit 7: a release) */
+	int16_t instant;     /* the answer to the Instant that follows, or -1 */
+};
+
+static struct key_event key_queue[KEY_QUEUE];
 static int key_head, key_tail;
 static uint8_t key_down[128];
+static int caps_locked;
 static int mouse_button;
+/* A keypad code waiting for the Mac's Instant, and an Instant to answer. */
+static int instant_byte = -1;
+static int instant_asked;
 
-/* The Plus's keyboard has the main keys only. */
-static int plus_key(int code)
+/* The keypad's codes for the Mac's (ADB) key codes; 0x100 marks the keys
+   that come with Shift. */
+static int keypad_code(int code)
+{
+	switch (code) {
+	case 0x3b: return 0x0d;            /* Left */
+	case 0x3c: return 0x05;            /* Right */
+	case 0x3e: return 0x1b;            /* Up */
+	case 0x3d: return 0x11;            /* Down */
+	case 0x47: return 0x0f;            /* Clear */
+	case 0x59: return 0x33;            /* 7 */
+	case 0x5b: return 0x37;            /* 8 */
+	case 0x5c: return 0x39;            /* 9 */
+	case 0x4e: return 0x1d;            /* - */
+	case 0x56: return 0x2d;            /* 4 */
+	case 0x57: return 0x2f;            /* 5 */
+	case 0x58: return 0x31;            /* 6 */
+	case 0x53: return 0x27;            /* 1 */
+	case 0x54: return 0x29;            /* 2 */
+	case 0x55: return 0x2b;            /* 3 */
+	case 0x4c: return 0x19;            /* Enter */
+	case 0x52: return 0x25;            /* 0 */
+	case 0x41: return 0x03;            /* . */
+	case 0x45: return 0x100 | 0x0d;    /* + */
+	case 0x43: return 0x100 | 0x05;    /* * */
+	case 0x4b: return 0x100 | 0x1b;    /* / */
+	case 0x51: return 0x100 | 0x11;    /* = */
+	}
+	return -1;
+}
+
+/* The Plus's keyboard's main keys: no Control (0x36) or Escape (0x35). */
+static int main_key(int code)
 {
 	return code <= 0x3a && code != 0x34 && code != 0x35 && code != 0x36;
 }
 
-void emu_key(int code, int pressed)
+static void queue_key(uint8_t inquiry, int instant)
 {
 	int next = (key_tail + 1) % KEY_QUEUE;
-	if (code < 0 || code > 127 || !plus_key(code))
+	if (next == key_head)
+		return;   /* full: dropped */
+	key_queue[key_tail].inquiry = inquiry;
+	key_queue[key_tail].instant = (int16_t) instant;
+	key_tail = next;
+}
+
+#define MAC_CAPS_LOCK 0x39
+
+void emu_key(int code, int pressed)
+{
+	int keypad;
+	if (code < 0 || code > 127)
+		return;
+	/* Caps Lock locks: down while locked, as the Mac's. */
+	if (code == MAC_CAPS_LOCK) {
+		if (!pressed)
+			return;
+		caps_locked = !caps_locked;
+		pressed = caps_locked;
+	}
+	keypad = keypad_code(code);
+	if (keypad < 0 && !main_key(code))
 		return;
 	if (key_down[code] == (pressed != 0))
 		return;
 	key_down[code] = pressed != 0;
-	if (next == key_head)
-		return;   /* full: dropped */
-	/* The Plus keyboard's transition code: the key code shifted left,
-	   bit 0 set (bit 7 for a release is added by umac). */
-	key_queue[key_tail] = (uint8_t) ((code << 1) | 1);
-	key_queue[key_tail] |= pressed ? 0 : 0x80;
-	key_tail = next;
+	if (keypad < 0) {
+		queue_key((uint8_t) (((code << 1) | 1) | (pressed ? 0 : 0x80)), -1);
+		return;
+	}
+	if ((keypad & 0x100) && pressed)
+		queue_key(KBD_SHIFT, -1);
+	queue_key(KBD_KEYPAD, (keypad & 0xff) | (pressed ? 0 : 0x80));
+	if ((keypad & 0x100) && !pressed)
+		queue_key(KBD_SHIFT | 0x80, -1);
 }
 
 void emu_release_keys(void)
 {
 	int code;
 	for (code = 0; code < 128; code++)
-		if (key_down[code])
+		if (key_down[code] && code != MAC_CAPS_LOCK)
 			emu_key(code, FALSE);
 	mouse_button = 0;
 	umac_mouse(0, 0, 0);
 }
 
+/* A key for the Mac's next Inquiry, every other frame (umac keeps one
+   at a time), and none while a keypad code waits for its Instant. */
 static void feed_key(void)
 {
 	static int wait;
-	uint8_t k;
-	if (key_head == key_tail || ++wait < 2)
+	struct key_event k;
+	if (key_head == key_tail || instant_byte >= 0 || ++wait < 2)
 		return;
 	wait = 0;
 	k = key_queue[key_head];
 	key_head = (key_head + 1) % KEY_QUEUE;
-	umac_kbd_event(k & 0x7f, !(k & 0x80));
+	umac_kbd_event(k.inquiry & 0x7f, !(k.inquiry & 0x80));
+	instant_byte = k.instant;
+}
+
+/* The Mac's keyboard commands, which the VIA's shift register sends:
+   Instant is answered here (after umac_loop()'s next step, as umac answers
+   the others a little later, not to rush the Mac), the rest by umac. */
+static void (*umac_sr_tx)(uint8_t data);
+
+static void plus_sr_tx(uint8_t data)
+{
+	if (data == KBD_INSTANT_A || data == KBD_INSTANT_B) {
+		instant_asked = TRUE;
+		return;
+	}
+	umac_sr_tx(data);
+}
+
+static void answer_instant(void)
+{
+	if (!instant_asked)
+		return;
+	instant_asked = FALSE;
+	via_sr_rx(instant_byte >= 0 ? (uint8_t) instant_byte : KBD_NULL);
+	instant_byte = -1;
+}
+
+/* umac's main.c calls this for via_init() (umac.mk renames it): the
+   VIA's callbacks, with the keyboard's commands seen here first. */
+void plus_via_init(struct via_cb *cb)
+{
+	struct via_cb mine = *cb;
+	umac_sr_tx = cb->sr_tx;
+	mine.sr_tx = plus_sr_tx;
+	instant_byte = -1;
+	instant_asked = FALSE;
+	via_init(&mine);
 }
 
 void emu_mouse(int dx, int dy, int buttons)
@@ -381,7 +500,9 @@ void emu_main(void)
 			/* A frame's time at 7.8336 MHz, in umac's 5 ms steps. */
 			wanted += 1000000.0 / FRAME_HZ;
 			while (emulated < wanted) {
-				if (umac_loop()) {
+				int stopped = umac_loop();
+				answer_instant();
+				if (stopped) {
 					printf("BMMacintosh: umac stopped\n");
 					bmmac_stopped("The Mac has stopped (umac could not go on).\n"
 					              "Press a key to start it again.");
@@ -394,7 +515,7 @@ void emu_main(void)
 			if (++frames % 60 == 0)
 				umac_1hz_event();
 			feed_key();
-			play_sound();
+					play_sound();
 			bmmac_frame();
 		}
 		emu_release_keys();

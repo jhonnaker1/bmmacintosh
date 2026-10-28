@@ -34,5 +34,8 @@ UMAC_INCLUDES = -I $(SRCROOT)src/port/plus -I $(UMAC)/include -I $(MUSASHI)
 
 # umac's main.c resets the Mac when the Mac ejects its disk; with no disk
 # it would start again and again. Its umac_disc_ejected() is renamed away
-# here, and main_plus.c's is used instead.
-UMAC_MAIN_CFLAGS = -Dumac_disc_ejected=umac_main_disc_ejected
+# here, and main_plus.c's is used instead. And its keyboard answers the
+# Mac's Inquiry but not Instant, which the keypad and arrow keys need: its
+# call to via_init() goes to main_plus.c's plus_via_init(), which answers
+# Instant before passing the rest on.
+UMAC_MAIN_CFLAGS = -Dumac_disc_ejected=umac_main_disc_ejected -Dvia_init=plus_via_init

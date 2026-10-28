@@ -126,15 +126,16 @@ where a Mac's are:
 | Backspace                | Delete          |
 | Delete                   | Forward delete (Mac II) |
 | F11, Insert              | Help (Mac II)   |
-| Num Lock                 | Clear (Mac II)  |
+| Num Lock                 | Clear           |
 | Print Screen, Scroll Lock, Pause | F13, F14, F15 (Mac II) |
 
-On the Mac II, Caps Lock locks, as the Mac's does. F12 is BMMacintosh's menu. The power
+Caps Lock locks, as the Mac's does. F12 is BMMacintosh's menu. The power
 key (a Pi 400's Fn+F10) shuts down.
 
-The Mac Plus's keyboard has the main keys only: umac's keyboard has no
-arrow keys, keypad, Control or Escape yet, and takes a key every other
-frame, so very fast typing can lose keys.
+The Mac Plus's keyboard is the Plus's: the main keys, the arrow keys and
+the keypad (its + * / = come with Shift, as on the Plus's own keyboard),
+no Control or Escape. Keys go to it one at a time, every other frame, from
+a queue.
 
 A USB mouse is the Mac's mouse (the left button; the Mac has one). A
 gamepad moves the mouse too: the left stick or D-pad moves the pointer,
