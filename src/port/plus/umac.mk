@@ -22,7 +22,7 @@ MUSASHI_SRCS = m68kcpu.c m68kdasm.c softfloat/softfloat.c
 # Written by m68kmake, from m68k_in.c.
 UMAC_GEN_SRCS = m68kops.c
 
-UMAC_PORT_SRCS = main_plus.c
+UMAC_PORT_SRCS = main_plus.c rtc_plus.c
 
 # umac's own build's options (its Makefile), with the RAM size a variable
 # (umac_prefix.h) and Musashi's configuration umac's.

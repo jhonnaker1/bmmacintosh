@@ -21,7 +21,9 @@ of its own.
   through a disk driver of BMMacintosh's own (Basilisk II's, GPL version 2
   or later, in place of umac's, marked "GPLv2"), its sound buffer played;
   its keyboard with the arrow keys and keypad (the Instant command umac
-  doesn't answer, answered in front of it), and a locking Caps Lock
+  doesn't answer, answered in front of it), and a locking Caps Lock; its
+  clock chip, with the Pi's time and its parameter RAM kept on the card
+  (`macplus.pram`)
 - Switching Macs from the menu (Machine), which rewrites `config.txt`'s
   `kernel=` lines and restarts the Pi, as BMC64 switched machines
 - The user's own ROMs, as files or as MAME's zipped sets (whose chips are

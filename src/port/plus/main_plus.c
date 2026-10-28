@@ -18,7 +18,8 @@
  *
  * The keyboard is the Plus's, with its keypad and arrow keys (see
  * Keyboard and mouse below): umac takes one key at a time, which is fed it every
- * other frame. The disk is read and written in place on the SD card.
+ * other frame. The clock chip is rtc_plus.c's. The disk is read and
+ * written in place on the SD card.
  * Settings (plus_rom, plus_ram, plus_disk) are in bmmac.cfg.
  *
  * This file is part of BMMacintosh, a bare metal 68k Macintosh emulator for
@@ -36,6 +37,7 @@
 
 #include "../../host.h"
 #include "../bmmac.h"
+#include "plus.h"
 
 /* umac's RAM size (machw.h's RAM_SIZE): the menu's choice. */
 unsigned umac_memsize_kb = 4096;
@@ -145,6 +147,7 @@ void emu_sync_disks(void)
 {
 	if (disk != NULL)
 		fflush(disk);
+	plus_rtc_save();
 }
 
 /* ---- Keyboard and mouse --------------------------------------------------------- */
@@ -308,13 +311,36 @@ static void answer_instant(void)
 	instant_byte = -1;
 }
 
+/* Port B: umac's mouse and sound lines, and the clock chip's
+   (rtc_plus.c), which umac leaves alone. */
+static void (*umac_rb_change)(uint8_t val);
+static uint8_t (*umac_rb_in)(void);
+
+static void plus_rb_change(uint8_t val)
+{
+	plus_rtc_portb(val);
+	if (umac_rb_change != NULL)
+		umac_rb_change(val);
+}
+
+static uint8_t plus_rb_in(void)
+{
+	uint8_t v = umac_rb_in != NULL ? umac_rb_in() : 0;
+	return (uint8_t) ((v & ~1) | (plus_rtc_data() & 1));
+}
+
 /* umac's main.c calls this for via_init() (umac.mk renames it): the
-   VIA's callbacks, with the keyboard's commands seen here first. */
+   VIA's callbacks, with the keyboard's commands and the clock chip's
+   lines seen here first. */
 void plus_via_init(struct via_cb *cb)
 {
 	struct via_cb mine = *cb;
 	umac_sr_tx = cb->sr_tx;
+	umac_rb_change = cb->rb_change;
+	umac_rb_in = cb->rb_in;
 	mine.sr_tx = plus_sr_tx;
+	mine.rb_change = plus_rb_change;
+	mine.rb_in = plus_rb_in;
 	instant_byte = -1;
 	instant_asked = FALSE;
 	via_init(&mine);
@@ -476,6 +502,7 @@ static int start_mac(char *why, size_t size)
 	}
 	memset(discs, 0, sizeof discs);
 	open_disk(&discs[0]);
+	plus_rtc_load();
 	umac_init(ram, rom, discs);
 	repaint = TRUE;
 	printf("BMMacintosh: %s, ROM %s\n", emu_machine_text(), r->path);

@@ -123,7 +123,7 @@ $(OUT)/musashi/%.o: $(MUSASHI)/%.c $(GEN)/m68kops.h
 	@mkdir -p $(dir $@)
 	@$(CC) $(UMAC_FLAGS) -c -o $@ $<
 
-$(OUT)/port/plus/%.o: $(ROOT)/src/port/plus/%.c $(ROOT)/src/port/bmmac.h $(ROOT)/src/port/osd.h $(GEN)/m68kops.h
+$(OUT)/port/plus/%.o: $(ROOT)/src/port/plus/%.c $(ROOT)/src/port/plus/plus.h $(ROOT)/src/port/bmmac.h $(ROOT)/src/port/osd.h $(GEN)/m68kops.h
 	@mkdir -p $(dir $@)
 	$(CC) $(UMAC_FLAGS) -std=gnu11 $(WARN) -c -o $@ $<
 

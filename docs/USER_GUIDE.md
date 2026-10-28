@@ -37,6 +37,7 @@ same card: the ROMs, the disks, the web UI and BMMacintosh's settings.
 | `bmmac.cfg`      | Settings changed in BMMacintosh's menu, and the Mac Plus's (written by BMMacintosh) |
 | `macii.prefs`    | The Mac II's settings, in Basilisk II's own format: the ROM, the disks, the memory, the screen (written by BMMacintosh) |
 | `macii.xpram`    | The Mac II's parameter RAM (the Control Panel's settings) |
+| `macplus.pram`   | The Mac Plus's: its clock chip's parameter RAM, and how far its clock was set from the Pi's |
 | `roms/`          | Your Mac ROMs (see ROMs)                                    |
 | `disks/`         | For your disk images (any folder works)                     |
 | `shared/`        | A folder the Mac II sees as a disk, *SD Card*               |
@@ -213,9 +214,9 @@ The web UI is open to anyone on your network. To protect it with a PIN, set
 
 The network also sets the Pi's clock, so files saved on the card get the
 right date and time. Set `timezone` to your offset from UTC in minutes, for
-example `timezone=600` for UTC+10. The Mac II's clock is the Pi's, in that
-time zone. (umac's Mac Plus doesn't have the Plus's clock chip, so it
-doesn't keep the date.)
+example `timezone=600` for UTC+10. Both Macs' clocks are the Pi's, in that
+time zone; setting the Mac's clock (the Control Panel, the Alarm Clock)
+moves it from there, and the Mac Plus keeps that in `macplus.pram`.
 
 ## Options
 

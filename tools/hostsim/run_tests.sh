@@ -371,6 +371,12 @@ if [ -n "${BMMAC_PLUS_DISK:-}" ] && [ -f "$BMMAC_PLUS_DISK" ]; then
     copy_disk "$BMMAC_PLUS_DISK" "$OUT/plussystem/system.dsk"
     run "$PLUS" plussystem 60 "plus_disk=$OUT/plussystem/system.dsk" '2400 shot a.ppm\n2401 quit\n'
     finder plussystem a
+    if python3 -c "import sys; d=open(sys.argv[1],'rb').read(); sys.exit(not (len(d) == 24 and d[0] == 0xa8))" \
+           "$OUT/plussystem/macplus.pram" 2>/dev/null; then
+        pass "plussystem: the clock chip's parameter RAM is kept in macplus.pram"
+    else
+        fail plussystem "no valid macplus.pram (the clock chip)"
+    fi
 else
     skip "System from a floppy (no BMMAC_PLUS_DISK)"
 fi
