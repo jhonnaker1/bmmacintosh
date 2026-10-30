@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- A picture wider than the display (a 4:3 or 3:2 Mac on a 5:4 monitor)
+  keeps its shape: as wide as the display, with bars above and below,
+  where its width was cut and it came out squashed (issue #3). In sharp
+  mode it is drawn at fewer whole multiples of its lines to fit. On the
+  Pi 3, 2 and Zero a smaller Screen Size now narrows the picture as well
+  as shortening it. All three display paths use one layout
+  (`src/av/layout.h`), tested on the PC for every Mac screen on 16:9,
+  16:10 and 5:4 displays (`tools/pi4scaler`)
+- `tools/qemu/run_qemu.sh` starts a Pi 4 kernel in QEMU and prints its
+  log, for crashes before the log reaches the SD card (from BMAmiga)
 - The Mac II's screen can also be 1600x1200 (Apple's 20-inch ColorSync
   Display's largest size), offered when the display has 800 lines or more
   (1080p, 1920x1200): a screen taller than the display is shrunk to it,

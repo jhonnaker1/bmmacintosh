@@ -8,6 +8,7 @@
 //
 
 #include "video.h"
+#include "layout.h"
 
 #include "../logging.h"
 
@@ -264,28 +265,12 @@ void Pi4Video::SetView(int x, int y, int w, int h, double aspect,
   m_nViewW = w;
   m_nViewH = h;
 
-  unsigned dest_h;
-  if (m_bFiltered) {
-    dest_h = (unsigned)(m_nHeight * scale);
-    m_nRepeat = 1;
-  } else {
-    unsigned repeat = (unsigned)(m_nHeight * scale) / (unsigned)h;
-    if (repeat == 0) {
-      repeat = 1;
-    }
-    m_nRepeat = repeat;
-    dest_h = repeat * h;
-  }
-  if (dest_h > m_nHeight) {
-    dest_h = m_nHeight;
-  }
-  if (dest_h == 0) {
-    dest_h = 1;
-  }
-  unsigned dest_w = (unsigned)(dest_h * aspect + 0.5);
-  if (dest_w > m_nWidth) {
-    dest_w = m_nWidth;
-  }
+  // src/av/layout.h: the height filled, the shape kept.
+  PictureLayout layout = LayOutPicture(m_nWidth, m_nHeight, (unsigned)w, (unsigned)h,
+                                       aspect, scale, !m_bFiltered);
+  m_nRepeat = layout.repeat;
+  unsigned dest_h = layout.h;
+  unsigned dest_w = layout.w;
   const unsigned bytes = m_nDepth / 8;
   dest_w &= ~(16 / bytes - 1);
   if (dest_w == 0) {
@@ -561,23 +546,11 @@ void Pi4Video::SetViewKms(int x, int y, int w, int h, double aspect,
   m_fKmsScale = scale;
 
   const unsigned width = m_pKms->Width(), height = m_pKms->Height();
-  unsigned dest_h;
-  if (m_bFiltered) {
-    dest_h = (unsigned)(height * scale);
-  } else {
-    unsigned repeat = (unsigned)(height * scale) / (unsigned)h;
-    dest_h = (repeat == 0 ? 1 : repeat) * (unsigned)h;
-  }
-  if (dest_h > height) {
-    dest_h = height;
-  }
-  if (dest_h == 0) {
-    dest_h = 1;
-  }
-  unsigned dest_w = (unsigned)(dest_h * aspect + 0.5);
-  if (dest_w > width) {
-    dest_w = width;
-  }
+  // src/av/layout.h: the height filled, the shape kept.
+  PictureLayout layout = LayOutPicture(width, height, (unsigned)w, (unsigned)h, aspect,
+                                       scale, !m_bFiltered);
+  unsigned dest_h = layout.h;
+  unsigned dest_w = layout.w;
   unsigned dest_x = (width - dest_w) / 2;
   unsigned dest_y = (height - dest_h) / 2;
 

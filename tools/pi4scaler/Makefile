@@ -1,7 +1,8 @@
 #
 # Builds the PC tests for the shared Pi 4/5 ARM smooth scaling and CRT shader
 # (src/av/scaler.*, see test.cpp) and for sharing a frame between cores
-# (src/av/frameshare.h, see test_share.cpp).
+# (src/av/frameshare.h, see test_share.cpp), and for where the picture goes
+# on the display (src/av/layout.h, see test_layout.cpp).
 #
 #   tools/pi4scaler/run_tests.sh
 #
@@ -13,7 +14,7 @@ CXXFLAGS = -O3 -g -Wall -std=c++17
 
 OUT := build
 
-all: $(OUT)/pi4scaler_test $(OUT)/share_test
+all: $(OUT)/pi4scaler_test $(OUT)/share_test $(OUT)/layout_test
 
 $(OUT)/pi4scaler_test: test.cpp $(ROOT)/src/av/scaler.cpp $(ROOT)/src/av/scaler.h
 	@mkdir -p $(OUT)
@@ -23,6 +24,10 @@ $(OUT)/pi4scaler_test: test.cpp $(ROOT)/src/av/scaler.cpp $(ROOT)/src/av/scaler.
 $(OUT)/share_test: test_share.cpp $(ROOT)/src/av/frameshare.h
 	@mkdir -p $(OUT)
 	$(CXX) -O2 -g -Wall -std=c++17 -fsanitize=thread -o $@ test_share.cpp -pthread
+
+$(OUT)/layout_test: test_layout.cpp $(ROOT)/src/av/layout.h
+	@mkdir -p $(OUT)
+	$(CXX) $(CXXFLAGS) -o $@ test_layout.cpp
 
 clean:
 	rm -rf $(OUT)

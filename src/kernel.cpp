@@ -10,6 +10,7 @@
 //
 
 #include "kernel.h"
+#include "av/layout.h"
 #include "logging.h"
 #include "network.h"
 
@@ -905,12 +906,15 @@ void CKernel::VideoSetView(int x, int y, int w, int h, double aspect) {
   }
   mFrameBuffer.SetSrcRect(x, y, w, h);
   // Fill the display's height (times "scale"), with the width following
-  // the aspect ratio.
+  // the aspect ratio, and never wider than the display (src/av/layout.h):
+  // the size is given to the layer as it is.
   double scale = mOptions.GetDouble("scale", 1.0);
-  if (scale <= 0.1 || scale > 1.0) {
-    scale = 1.0;
-  }
-  mFrameBuffer.SetStretch(aspect, scale, 0, 0, 0, 0);
+  int display_w, display_h, fb_w, fb_h, src_w, src_h, dst_w, dst_h;
+  mFrameBuffer.GetDimensions(&display_w, &display_h, &fb_w, &fb_h, &src_w, &src_h,
+                             &dst_w, &dst_h);
+  PictureLayout layout = LayOutPicture((unsigned)display_w, (unsigned)display_h,
+                                       (unsigned)w, (unsigned)h, aspect, scale, false);
+  mFrameBuffer.SetStretch(aspect, 1.0, (int)layout.w, (int)layout.h, 1, 1);
   mFrameBuffer.Show();
 }
 

@@ -144,11 +144,22 @@ floating point, and the pictures are written to `tools/pi4scaler/out/`.
 [PI4.md](PI4.md) and [PI5.md](PI5.md)): shared filter kernels, EDID, mode
 choice, HDMI packets and audio clocks, and each board's display lists and
 PHY settings.
-Both come from BMA800XL.
+Both come from BMA800XL. `tools/pi4scaler` also tests where the picture
+goes on the display (`src/av/layout.h`, every Pi): every Mac screen on
+16:9, 16:10 and 5:4 displays fits, is centred and keeps its shape.
 
 ```
 tools/pi4scaler/run_tests.sh
 tools/pi4kms/run_tests.sh
+```
+
+`tools/qemu/run_qemu.sh` starts a Pi 4 kernel in QEMU's `raspi4b` (`brew
+install qemu`) and prints its log from the serial port, for a kernel that
+stops before its log reaches the SD card. QEMU covers the start only: it
+has no SD card as Circle drives it, no display hardware, USB or network.
+
+```
+tools/qemu/run_qemu.sh build/sdcard/macii8-rpi4.img
 ```
 
 ## The web UI
@@ -198,3 +209,4 @@ with `tools/gen_webui_assets.py` whenever an asset changes.
 | `tools/mac_media.py`         | ROM files and raw disk images from MAME's   |
 | `tools/pi4scaler`            | PC test of shared Pi 4/5 ARM scaling and CRT rendering |
 | `tools/pi4kms`               | PC test of Pi 4/5 display driver calculations |
+| `tools/qemu`                  | Starts a Pi 4 kernel in QEMU, for start-up crashes |
