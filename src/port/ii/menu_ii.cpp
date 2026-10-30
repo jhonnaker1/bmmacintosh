@@ -131,9 +131,12 @@ static void insert_disk(bool cdrom)
 	if (!bmmac_browse(cdrom ? "Insert a CD-ROM Image" : "Insert a Floppy Disk", "disks",
 	                  cdrom ? cd_exts : disk_exts, path, sizeof path))
 		return;
-	if (!ii_insert_disk(path, cdrom))
-		osd_message(cdrom ? "Eject the CD-ROM on the Mac first (Command-E)."
-		                  : "Both floppy drives are full: eject one on the Mac first.", TRUE);
+	if (!ii_insert_disk(path, cdrom)) {
+		const char *why = cdrom ? "Eject the CD-ROM on the Mac first (Command-E)."
+		                        : "Both floppy drives are full: eject one on the Mac first.";
+		printf("BMMacintosh: %s\n", why);
+		osd_message(why, TRUE);
+	}
 }
 
 static void restart_message(void)

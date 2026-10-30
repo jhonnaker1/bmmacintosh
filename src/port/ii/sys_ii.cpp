@@ -253,7 +253,10 @@ void *Sys_open(const char *name, bool read_only, bool is_cdrom)
 	if (f == NULL)
 		return NULL;
 	memset(f, 0, sizeof *f);
-	f->is_cdrom = is_cdrom || in_prefs("cdrom", name);
+	/* An empty name is an empty drive, and both empty floppy drives' and
+	   an empty CD-ROM drive's are "": only the caller can tell them apart
+	   (cdrom.cpp says so), or the floppy drives become CD-ROM drives. */
+	f->is_cdrom = is_cdrom || (name[0] != '\0' && in_prefs("cdrom", name));
 	f->removable = f->is_cdrom || in_prefs("floppy", name);
 	/* An empty name is an empty floppy or CD-ROM drive. */
 	if (name[0] == '\0' && !f->removable)

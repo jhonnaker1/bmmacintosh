@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.3 – 2026-10-30
+
+- The Mac II's menu puts floppy images into an empty floppy drive again,
+  instead of saying both drives are full (issue #4): an empty floppy
+  drive's name is "", as the empty CD-ROM drive's is, and the floppy
+  drives were taken for CD-ROM drives
+
 ## 0.1.2 – 2026-10-30
 
 - A picture wider than the display (a 4:3 or 3:2 Mac on a 5:4 monitor)

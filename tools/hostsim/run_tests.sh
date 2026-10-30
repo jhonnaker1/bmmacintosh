@@ -309,6 +309,18 @@ check_log iistart "Web UI: starting .*blank\.dsk" "starts a disk image"
 check_log iistart "disk .*blank\.dsk, 800 KB" "the Mac restarted with it in the floppy drive"
 check_log iistart "ejected .*blank\.dsk" "and ejects it: it isn't a Mac disk"
 
+echo "A floppy from the menu, into an empty drive (issue #4)"
+# Menu, Insert a Floppy Disk (the first item), the first file in disks.
+mkdir -p "$OUT/iifloppy/disks"
+cp "$OUT/blank.dsk" "$OUT/iifloppy/disks/blank.dsk"
+run "$II" iifloppy 60 "" "$(key $F12 600)$(key $ENTER 620)$(key $ENTER 650)700 quit\n"
+check_log iifloppy "disk .*disks/blank\.dsk, 800 KB" "goes into the empty floppy drive"
+if grep -q "floppy drives are full" "$OUT/iifloppy/log.txt"; then
+    fail iifloppy "the menu said both floppy drives were full"
+else
+    pass "iifloppy: no \"drives are full\" message"
+fi
+
 echo "Web UI requests"
 run "$II" iireboot 60 "" '600 webui reboot\n660 quit\n'
 check_log iireboot "reboot requested" "reboots"
