@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.1.2 – 2026-10-30
 
 - A picture wider than the display (a 4:3 or 3:2 Mac on a 5:4 monitor)
   keeps its shape: as wide as the display, with bars above and below,
