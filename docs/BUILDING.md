@@ -148,9 +148,16 @@ Both come from BMA800XL. `tools/pi4scaler` also tests where the picture
 goes on the display (`src/av/layout.h`, every Pi): every Mac screen on
 16:9, 16:10 and 5:4 displays fits, is centred and keeps its shape.
 
+`tools/bigalloc` tests `src/port/bigalloc.c`, which keeps big blocks of
+memory (over 512K) to be used again once freed, as Circle's heap never
+does: it repeats the Macs' restarts a thousand times against a heap that
+loses big blocks as Circle's does, and checks the memory used stops
+growing.
+
 ```
 tools/pi4scaler/run_tests.sh
 tools/pi4kms/run_tests.sh
+tools/bigalloc/run_tests.sh
 ```
 
 `tools/qemu/run_qemu.sh` starts a Pi 4 kernel in QEMU's `raspi4b` (`brew

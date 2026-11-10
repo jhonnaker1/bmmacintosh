@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.1.5 – 2026-11-10
+
+- Restarting the Mac no longer uses up the Pi's memory. Circle's heap never
+  reuses a freed block bigger than 512K, and each start of a Mac freed and
+  allocated big ones again: the Mac II's memory (up to 520 MB with a
+  512 MB Mac), its screen's 7.7 MB copy and Basilisk II's 2.6 MB
+  instruction table, and the Mac Plus's RAM; the Pi 4 and 5 also made
+  their picture and CRT tables again (8 MB each at 1080p) whenever the
+  Mac's screen or the menu's Screen Size changed. So after some restarts
+  the Mac could no longer start, the sooner the more memory it had. Big
+  blocks are now kept when freed and given again
+  (`src/port/bigalloc.c`, from BMAtariST and BMNeXT; malloc, calloc,
+  realloc, free and C++'s new and delete are wrapped). Tested on a Pi 5:
+  a 512 MB Mac II restarted six times. `tools/bigalloc` tests it on the
+  PC, with a thousand restarts
+
 ## 0.1.4 – 2026-11-03
 
 - The Mac II reaches the Internet from a Pi (issue #5): it had an address

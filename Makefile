@@ -79,6 +79,7 @@ GEN := $(BUILD)/gen
 OBJS = src/main.o src/kernel.o src/logging.o src/options.o \
        src/port/frontend.o src/port/keymap.o src/port/menu.o src/port/machine.o \
        src/port/osd.o src/port/roms.o src/port/posix_extra.o src/port/fswrap.o \
+       src/port/bigalloc.o src/port/bigalloc_size.o \
        src/network.o src/network_time_sync.o \
        src/webui/webui.o src/webui/webui_http.o src/webui/webui_fs.o \
        src/webui/webui_machine.o src/webui/webui_assets.o \
@@ -137,6 +138,17 @@ INCLUDE := $(CIRCLE_STDLIB_INCLUDES) $(INCLUDE) -I $(CIRCLEHOME)/addon/fatfs
 
 # See src/port/fswrap.c
 LDFLAGS += --wrap=stat
+# See src/port/bigalloc.c (C++'s new and delete by their compiled names:
+# size_t is unsigned long on 64-bit Pis, unsigned int on 32-bit ones)
+ifeq ($(strip $(AARCH)),64)
+BIGALLOC_SIZE := m
+else
+BIGALLOC_SIZE := j
+endif
+LDFLAGS += --wrap=malloc --wrap=free --wrap=calloc --wrap=realloc \
+           --wrap=_Znw$(BIGALLOC_SIZE) --wrap=_Zna$(BIGALLOC_SIZE) \
+           --wrap=_ZdlPv --wrap=_ZdaPv \
+           --wrap=_ZdlPv$(BIGALLOC_SIZE) --wrap=_ZdaPv$(BIGALLOC_SIZE)
 
 VERSION_DEFINES = -DBMMAC_VERSION=\"$(BMMAC_VERSION)\" -DBMMAC_GIT=\"$(BMMAC_GIT)\" \
                   -DBMMAC_RASPPI=$(RASPPI)

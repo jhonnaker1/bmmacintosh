@@ -129,6 +129,7 @@ then
     run_tests "$SRC_DIR/tools/hostsim/run_tests.sh"
     run_tests "$SRC_DIR/tools/pi4kms/run_tests.sh"
     run_tests "$SRC_DIR/tools/pi4scaler/run_tests.sh"
+    run_tests "$SRC_DIR/tools/bigalloc/run_tests.sh"
 fi
 
 # The SD card is staged once; each board's build adds its kernels.
