@@ -27,17 +27,18 @@ include third_party/circle-stdlib/Config.mk
 # pick the board's display and sound code.
 include $(CIRCLEHOME)/Config.mk
 
-# The kernels this board has.
+# The kernels this board has: the Power Mac (SheepShaver) is for the Pi 5
+# (and the Pi 4, for QEMU's raspi4b, tools/qemu/run_qemu.sh).
 ifneq ($(filter 4 5,$(RASPPI)),)
-EMUS := plus ii
+EMUS := plus ii ppc
 else
 EMUS := plus
 endif
 
 ifeq ($(EMU),)
 
-# Both kernels, one after the other (they share the objects outside
-# src/port/ii and src/port/plus).
+# The kernels, one after the other (they share the objects outside
+# src/port/ii, src/port/plus and src/port/ppc).
 all:
 	@for emu in $(EMUS); do $(MAKE) --no-print-directory EMU=$$emu || exit 1; done
 
@@ -90,7 +91,21 @@ ZLIB_SRCS = adler32.c crc32.c inffast.c inflate.c inftrees.c zutil.c
 ZLIB_CFLAGS = -DHAVE_UNISTD_H -DHAVE_STDARG_H -w
 ZLIB_OBJS := $(addprefix $(BUILD)/zlib/,$(ZLIB_SRCS:.c=.o))
 
-ifeq ($(EMU),ii)
+ifeq ($(EMU),ppc)
+include src/port/ppc/sheepshaver.mk
+# slirp, as the Mac II's (basilisk.mk), for the network.
+include src/port/ii/basilisk.mk
+# SheepShaver's objects (big) can go elsewhere: PPC_BUILD, or BMMAC_WORK
+# (a folder for each board).
+PPC_BUILD ?= $(if $(BMMAC_WORK),$(BMMAC_WORK)/ppc-pi$(RASPPI),$(BUILD)/ppc)
+EMU_OBJS := $(addprefix $(PPC_BUILD)/ss/,$(SS_CORE_SRCS:.cpp=.o)) \
+            $(addprefix $(PPC_BUILD)/ss/,$(SS_CPU_SRCS:.cpp=.o)) \
+            $(addprefix $(PPC_BUILD)/ss/,$(SS_CPU_C_SRCS:.c=.o)) \
+            $(addprefix $(PPC_BUILD)/ii/,$(SS_II_SRCS:.cpp=.o)) \
+            $(addprefix $(BUILD)/slirp/,$(B2_SLIRP_SRCS:.c=.o)) \
+            $(addprefix $(BUILD)/slirp/,$(B2_SLIRP_PORT_SRCS:.c=.o))
+OBJS += $(addprefix src/port/ppc/,$(SS_PORT_SRCS:.cpp=.o)) src/slirp_sockets.o
+else ifeq ($(EMU),ii)
 include src/port/ii/basilisk.mk
 EMU_OBJS := $(addprefix $(BUILD)/b2/,$(B2_CORE_SRCS:.cpp=.o)) \
             $(addprefix $(GEN)/b2/,$(B2_GEN_SRCS:.cpp=.o)) \
@@ -162,7 +177,66 @@ $(BUILD)/zlib/%.o: $(ZLIB)/%.c
 	@echo "  CC    $<"
 	@$(CC) $(CFLAGS) $(C_STANDARD) $(ZLIB_CFLAGS) -c -o $@ $<
 
-ifeq ($(EMU),ii)
+ifeq ($(EMU),ppc)
+
+# SheepShaver, compiled into PPC_BUILD so the submodule stays clean; the
+# Mac II's shared front end files (src/port/ii/) are compiled again there,
+# for SheepShaver.
+SS_FLAGS = $(CPPFLAGS) $(SS_CXXFLAGS) $(SS_INCLUDES) -I $(PPC_BUILD)/gen
+src/port/ppc/%.o src/port/ppc/%.d: CPPFLAGS += $(SS_CXXFLAGS) $(SS_INCLUDES)
+
+# The interpreter's instruction handlers, instantiated from ppc-decode.cpp's
+# table by genexec.pl (as SheepShaver's build does).
+$(PPC_BUILD)/gen/ppc-execute-impl.cpp: $(SS)/kpx_cpu/src/cpu/ppc/ppc-decode.cpp \
+                                       $(SS)/kpx_cpu/src/cpu/ppc/genexec.pl
+	@mkdir -p $(dir $@)
+	@echo "  GEN   $@"
+	@$(CPP) -E $(SS_FLAGS) -DGENEXEC $< | perl $(SS)/kpx_cpu/src/cpu/ppc/genexec.pl > $@
+
+$(PPC_BUILD)/ss/kpx_cpu/src/cpu/ppc/ppc-execute.o: $(PPC_BUILD)/gen/ppc-execute-impl.cpp src/port/ppc/limit_log.h
+# Its message for each illegal instruction only so often (limit_log.h).
+$(PPC_BUILD)/ss/kpx_cpu/src/cpu/ppc/ppc-execute.o: SS_FLAGS += -include src/port/ppc/limit_log.h
+
+SS_CPP_OBJS := $(addprefix $(PPC_BUILD)/ss/,$(SS_CORE_SRCS:.cpp=.o) $(SS_CPU_SRCS:.cpp=.o))
+$(SS_CPP_OBJS): $(PPC_BUILD)/ss/%.o: $(SS)/%.cpp src/port/ppc/sysdeps_ppc.h
+	@mkdir -p $(dir $@)
+	@echo "  CPP   $<"
+	@$(CPP) $(SS_FLAGS) -c -o $@ $<
+
+# The interpreter is where the Power Mac's time goes: -O3, as the scaler.
+$(addprefix $(PPC_BUILD)/ss/,$(SS_CPU_SRCS:.cpp=.o)): OPTIMIZE = -O3
+
+SS_C_OBJS := $(addprefix $(PPC_BUILD)/ss/,$(SS_CPU_C_SRCS:.c=.o))
+$(SS_C_OBJS): $(PPC_BUILD)/ss/%.o: $(SS)/%.c
+	@mkdir -p $(dir $@)
+	@echo "  CC    $<"
+	@$(CC) $(CFLAGS) $(C_STANDARD) -w $(SS_DEFINES) $(SS_INCLUDES) -c -o $@ $<
+
+# Disk images through FatFs itself, past newlib's 2 GB lseek (sys_ii.cpp).
+SS_II_OBJS := $(addprefix $(PPC_BUILD)/ii/,$(SS_II_SRCS:.cpp=.o))
+$(SS_II_OBJS): $(PPC_BUILD)/ii/%.o: src/port/ii/%.cpp src/port/ppc/sysdeps_ppc.h
+	@mkdir -p $(dir $@)
+	@echo "  CPP   $< (Power Mac)"
+	@$(CPP) $(SS_FLAGS) -DII_SD_FS -c -o $@ $<
+
+# slirp, on Circle's sockets (src/slirp_sockets.cpp; circle_sockets.h
+# renames its socket calls).
+$(BUILD)/slirp/%.o: $(B2)/slirp/%.c src/port/ii/slirp/config.h src/port/ii/slirp/circle_sockets.h \
+                    src/port/ii/slirp/circle/sys/uio.h
+	@mkdir -p $(dir $@)
+	@echo "  CC    $<"
+	@$(CC) $(CFLAGS) $(C_STANDARD) $(B2_SLIRP_CFLAGS) -I src/port/ii/slirp/circle \
+	    -include src/port/ii/slirp/circle_sockets.h -c -o $@ $<
+
+$(BUILD)/slirp/%.o: src/port/ii/slirp/%.c src/port/ii/slirp/config.h \
+                    src/port/ii/slirp/circle_sockets.h
+	@mkdir -p $(dir $@)
+	@echo "  CC    $<"
+	@$(CC) $(CFLAGS) $(C_STANDARD) $(B2_SLIRP_CFLAGS) -I src/port/ii/slirp/circle \
+	    -include src/port/ii/slirp/circle_sockets.h -c -o $@ $<
+
+
+else ifeq ($(EMU),ii)
 
 # Basilisk II, compiled into build/ so the submodule stays clean.
 B2_FLAGS = $(CPPFLAGS) $(B2_CXXFLAGS) $(B2_INCLUDES) -I $(GEN)/b2
@@ -317,7 +391,8 @@ LIBS := $(EMU_LIB) \
 	$(CIRCLEHOME)/lib/libcircle.a
 
 EXTRACLEAN += $(OBJS) src/*.o src/port/*.o src/port/*.d src/port/ii/*.o src/port/ii/*.d \
-              src/port/plus/*.o src/port/plus/*.d src/*.d src/webui/*.d src/sdcard/*.d \
+              src/port/plus/*.o src/port/plus/*.d src/port/ppc/*.o src/port/ppc/*.d \
+              src/*.d src/webui/*.d src/sdcard/*.d \
               src/av/*.o src/av/*.d src/kms/common/*.o src/kms/common/*.d \
               src/kms/pi4/*.o src/kms/pi4/*.d \
               src/kms/pi5/*.o src/kms/pi5/*.d src/v3d/*.o src/v3d/*.d $(EMU_LIB)

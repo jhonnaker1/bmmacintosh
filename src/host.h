@@ -47,6 +47,18 @@ void host_video_set_view(int x, int y, int w, int h, double aspect);
 /* Shows the frame buffer. With WAIT_VSYNC, returns after the next vertical
    blank, which paces the emulation to the display. */
 void host_video_present(int wait_vsync);
+/* The same, saying which lines of the frame buffer changed since the last
+   frame (FIRST to LAST; none if LAST < FIRST): only they are drawn again.
+   On the Pi 4 and 5 with the direct display driver another core (3) shows
+   the frame: this returns once it has the frame, and WAIT_VSYNC waits for
+   the vertical blank after the frame before, not this one's. */
+void host_video_present_lines(int wait_vsync, int first, int last);
+/* Is the next frame due: has the frame before last been shown (1), or not
+   yet (0)? -1 where frames are shown as host_video_present() is called
+   (the PC simulator, the Pi 3, the firmware's framebuffer): the caller
+   paces itself. Lets an emulator run until the frame is due rather than
+   wait for it (src/port/ppc/main_ppc.cpp). */
+int host_video_frame_due(void);
 
 /* ---- Sound --------------------------------------------------------------- */
 
@@ -58,6 +70,10 @@ unsigned host_sound_open(unsigned freq, int channels, unsigned latency_frames);
 void host_sound_close(void);
 /* Frames that can be written without exceeding the latency. */
 unsigned host_sound_free_frames(void);
+/* How many frames the output takes at a time (0: any number): the Pi 5's
+   HDMI 1536, 32 ms. A block the queue is short of is padded with silence,
+   so the latency must keep more than one queued (src/port/frontend.c). */
+unsigned host_sound_block_frames(void);
 void host_sound_write(const int16_t *samples, unsigned frames);
 
 /* ---- Input --------------------------------------------------------------- */

@@ -25,6 +25,12 @@
  * "nonet true" in macii.prefs turns it off. From Basilisk II's Unix
  * ether_unix.cpp.
  *
+ * The Power Mac (SheepShaver, BMMAC_PPC_BUILD) has the same network:
+ * SheepShaver's Ethernet driver (its ether.cpp, an Open Transport driver)
+ * hands over the frames the Mac sends as STREAMS messages
+ * (AO_transmit_packet()), and the Ethernet interrupt passes it the frames
+ * for the Mac (EtherIRQ()). "nonet true" in macppc.prefs turns it off.
+ *
  * This file is part of BMMacintosh, a bare metal 68k Macintosh emulator for
  * the Raspberry Pi. See LICENSE for licensing details.
  */
@@ -53,6 +59,11 @@ extern "C" int bmslirp_select(int nfds, fd_set *readfds, fd_set *writefds,
 #define select bmslirp_select
 #else
 #include <unistd.h>
+#endif
+
+#ifdef BMMAC_PPC_BUILD
+/* The Mac's card's address (Basilisk II's ether.cpp has it). */
+static uint8 ether_addr[6];
 #endif
 
 /* ---- The queues ------------------------------------------------------------------- */
@@ -281,6 +292,83 @@ void ether_reset(void)
 	net_protocols.clear();
 }
 
+#ifdef BMMAC_PPC_BUILD
+
+/* ---- SheepShaver's Ethernet driver --------------------------------------------------- */
+
+static bool net_open;
+
+void EtherInit(void)
+{
+	net_open = false;
+	if (PrefsFindBool("nonet"))
+		return;
+	net_open = ether_init();
+}
+
+void EtherExit(void)
+{
+	ether_exit();
+	net_open = false;
+}
+
+void AO_get_ethernet_address(uint32 arg)
+{
+	Host2Mac_memcpy(arg, ether_addr, 6);
+}
+
+void AO_enable_multicast(uint32 addr)
+{
+	(void) addr;
+}
+
+void AO_disable_multicast(uint32 addr)
+{
+	(void) addr;
+}
+
+/* A frame from the Mac: a chain of STREAMS message blocks. */
+void AO_transmit_packet(uint32 mp)
+{
+	uint8 packet[MAX_FRAME];
+	static bool told;
+	if (!net_open)
+		return;
+	if (!told) {
+		told = true;
+		printf("BMMacintosh: the Mac sends on its network%s\n",
+		       net_running ? "" : " (not up yet)");
+	}
+	int length = ether_msgb_to_buffer(mp, packet);
+	if (net_running && length <= MAX_FRAME && queue_put(&to_slirp, packet, length))
+		num_tx_packets++;
+	else
+		num_tx_buffer_full++;
+}
+
+/* The Ethernet interrupt: the frames for the Mac go to Open Transport. */
+void EtherIRQ(void)
+{
+	if (!ether_driver_opened)
+		return;
+	num_ether_irq++;
+	OTEnterInterrupt();
+	EthernetPacket ether_packet;
+	uint32 packet = ether_packet.addr();
+	frame *f;
+	while ((f = queue_peek(&to_mac)) != NULL) {
+		int length = f->length;
+		if (length >= 14)
+			Host2Mac_memcpy(packet, f->data, length);
+		queue_drop(&to_mac);
+		if (length >= 14)
+			ether_dispatch_packet(packet, length);
+	}
+	OTLeaveInterrupt();
+}
+
+#else
+
 int16 ether_add_multicast(uint32 pb)
 {
 	(void) pb;
@@ -369,6 +457,8 @@ void EtherInterrupt(void)
 	}
 }
 
+#endif /* BMMAC_PPC_BUILD */
+
 /* Each frame tick: the Ethernet interrupt, when there are frames for the
    Mac. */
 void ii_ether_tick(void)
@@ -397,6 +487,15 @@ void ii_ether_tick(void)
 		}
 	}
 	if (queue_peek(&to_mac) != NULL) {
+#ifdef BMMAC_PPC_BUILD
+		/* Not until Mac OS has opened SheepShaver's driver (its routines
+		   aren't known before): frames before it are lost, as on Unix. */
+		if (!ether_driver_opened) {
+			while (queue_peek(&to_mac) != NULL)
+				queue_drop(&to_mac);
+			return;
+		}
+#endif
 		SetInterruptFlag(INTFLAG_ETHER);
 		TriggerInterrupt();
 	}

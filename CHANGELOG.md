@@ -1,5 +1,69 @@
 # Changelog
 
+## 0.2.0 – 2026-11-12
+
+- The Power Mac: a third Mac, SheepShaver's PowerPC Macintosh, for the
+  Pi 5 (`macppc_2712.img`; Machine in the menu). Mac OS 8.6 to 9.0.4 with
+  a "Mac OS ROM" file (1.1 to 1.6), or 7.5.5 to 9.0.4 with an Old World PCI
+  Power Mac's 4 MB ROM (the 7200 to 9600's, 6400's, 6500's and beige G3's;
+  tested in the PC simulator, and Mac OS 9.0.4 with ROM 1.6 on a Pi 5,
+  Internet Explorer on the network included); 16 MB to
+  1 GB; screens up to 1600x1200; the Mac II's disks, shared folder, sound
+  and network. Its PowerPC is interpreted (SheepShaver has no JIT for
+  ARM): usable on a Pi 5, not fast. Settings in `macppc.prefs`, its NVRAM
+  in `macppc.nvram`. A Pi 4 kernel is built too (`macppc8-rpi4.img`), for
+  tests in QEMU only (not run yet): the Machine menu offers the Power Mac
+  on a Pi 5 only
+- Faster on the Pi 4 and 5: only the lines of the Mac's screen that
+  changed are drawn again, and core 3 shows the frames, so the emulator's
+  core no longer waits for the display (the Mac II and the Mac Plus too;
+  the Power Mac runs until a frame is due). Tested on a Pi 5: the Power
+  Mac's PowerPC went from 40-60% of the time to 81-95%
+- PowerPC ROMs are found in the roms folder: Mac OS ROM files (they start
+  with "<CHRP-BOOT>") and Old World 4 MB ROMs (by their board's name).
+  The ones SheepShaver can't start are left out of the menu (Mac OS ROM
+  1.2.1, 1.8.1, 2.5.1 and later; the G3's "v3" ROM), the tested ones are
+  named (Mac OS ROM 1.6, Power Mac 6500...), and the newest good Mac OS
+  ROM file is the default
+- The Power Mac's memory outside RAM and the ROM reads as zeros, as in
+  SheepShaver's Unix port, and the ROM can't be written once Mac OS
+  starts (before, a write to missing memory read back, so Mac OS could
+  take it for RAM)
+- The Mac II's Model in the menu: the Quadra 900 (a 68040, as before) or
+  the Mac IIci (a 68030), which System 7.0 to 7.1.3 need (7.0 and 7.0.1
+  say the disk won't work on this Mac, 7.1.3 crashes). Tested: System
+  7.0, 7.0.1, 7.1.3, 7.5.5, 7.6.1 and Mac OS 8.1 with the Quadra 800's
+  and the IIci's ROMs. The log names the CPU set
+- Better sound:
+  - The Mac II and the Power Mac make their sound 2048 frames at a time
+    (43 ms), not 512: Mac OS was often slower to answer than 512 frames
+    lasted, the output ran dry, and the sound was stretched to fill the
+    gaps (lower and warbling: the Power Mac stretched 251 of 266 blocks of
+    an alert sound). Their sound buffer is three blocks (129 ms).
+  - A sound request Mac OS hasn't answered in half a second is made again
+    (Mac OS waits for an alert sound to end: the Power Mac froze playing
+    alert sounds).
+  - The Mac Plus's 22 kHz sound goes to the output's 48 kHz between its
+    samples, with a 7 kHz low pass as the Mac's own filter, not each
+    sample repeated (harsh overtones).
+  - The playback rate is steered by the sound buffer's level over about
+    half a second, by 0.5% at most: the Pi 5's HDMI takes 32 ms at a
+    time, and steering by the level as it swung made the pitch waver by
+    nearly 1% 31 times a second (a metallic sound). An empty buffer (at
+    the start, or after the Mac stalled) is filled to half with silence,
+    rather than the sound stretched to fill it
+  - The sound buffer holds three of the output's blocks at least: the Pi
+    5's HDMI takes 32 ms (1536 frames) at a time and pads a short block
+    with silence (97 ms at least on the Pi 5).
+  - `sound_test=1` in `cmdline.txt`: the first 8 seconds of each Mac's
+    sound are a 440 Hz tone, through the same path (a clean tone means the
+    output is fine). The log gives the sound's figures every 10 s: frames
+    a second, dropped, stretched, the queue's lowest and highest.
+  - The PC simulator's `BMMAC_SIM_CHUNK` takes the sound in blocks too,
+    and a test checks none is short
+- SheepShaver's message for each illegal instruction is logged the first
+  16 times only (a crashed Mac otherwise fills the log)
+
 ## 0.1.5 – 2026-11-10
 
 - Restarting the Mac no longer uses up the Pi's memory. Circle's heap never

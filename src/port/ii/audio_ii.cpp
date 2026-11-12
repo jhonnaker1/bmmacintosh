@@ -26,15 +26,20 @@
 #include "audio.h"
 #include "audio_defs.h"
 
+#include "../../host.h"
 #include "../bmmac.h"
 #include "ii.h"
 
-#define BLOCK_FRAMES 512
+/* The frames the Mac makes at a time, 43 ms at 48 kHz (Basilisk II's and
+   SheepShaver's SDL front ends ask for 4096): with less, the output ran
+   dry whenever Mac OS was slow to answer, and the sound was stretched. */
+#define BLOCK_FRAMES 2048
 
 static bool main_mute, speaker_mute;
 static uint32 main_volume = 0x01000100, speaker_volume = 0x01000100;
-/* An interrupt raised, and the Mac not yet asked for the block. */
+/* An interrupt raised, and the Mac not yet asked for the block; when. */
 static bool irq_pending;
+static double irq_time;
 static int16_t mix[BLOCK_FRAMES * 2];
 
 void AudioInit(void)
@@ -81,13 +86,23 @@ void audio_exit_stream(void)
 {
 }
 
+unsigned emu_sound_block(void)
+{
+	return BLOCK_FRAMES;
+}
+
 void ii_audio_service(void)
 {
-	if (!audio_open || irq_pending || AudioStatus.num_sources == 0)
+	if (!audio_open || AudioStatus.num_sources == 0)
+		return;
+	/* Not answered for half a second: asked again (Mac OS waits for an
+	   alert sound to end, so a lost interrupt froze it). */
+	if (irq_pending && host_time() - irq_time < 0.5)
 		return;
 	if (bmmac_sound_wanted() == 0)
 		return;
 	irq_pending = true;
+	irq_time = host_time();
 	SetInterruptFlag(INTFLAG_AUDIO);
 	TriggerInterrupt();
 }

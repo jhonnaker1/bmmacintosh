@@ -9,6 +9,9 @@
  *
  * Keys and the mouse go to the Mac's Apple Desktop Bus (adb.cpp).
  *
+ * The Power Macintosh (SheepShaver, BMMAC_PPC_BUILD) has the same menu,
+ * with its own ROMs and more memory, kept in macppc.prefs.
+ *
  * This file is part of BMMacintosh, a bare metal 68k Macintosh emulator for
  * the Raspberry Pi. See LICENSE for licensing details.
  */
@@ -101,7 +104,8 @@ void emu_mouse(int dx, int dy, int buttons)
 /* ---- Disks --------------------------------------------------------------------- */
 
 static const char *const disk_exts[] = {
-	"dsk", "img", "image", "hfv", "hda", "dc42", "diskcopy", "toast", "iso", "cdr", "bin", NULL
+	"dsk", "img", "image", "hfv", "hda", "dc42", "diskcopy", "toast", "iso", "cdr", "bin",
+	"dmg", NULL
 };
 static const char *const cd_exts[] = {"iso", "toast", "cdr", "img", "bin", NULL};
 
@@ -180,14 +184,14 @@ static void hard_disks_menu(void)
 
 static void rom_menu(void)
 {
-	const struct bmmac_rom *roms[32];
-	const char *names[33];
+	const struct bmmac_rom *roms[64];
+	const char *names[65];
 	int n = 0, current = 0, i;
 	const char *now = PrefsFindString("rom");
 	bmmac_rom_scan();
-	for (i = 0; i < bmmac_rom_count() && n < 32; i++) {
+	for (i = 0; i < bmmac_rom_count() && n < 64; i++) {
 		const struct bmmac_rom *r = bmmac_rom_get(i);
-		if (r->machine != BMMAC_II)
+		if (r->machine != emu_machine())
 			continue;
 		if (now != NULL && strcmp(now, r->path) == 0)
 			current = n;
@@ -196,7 +200,9 @@ static void rom_menu(void)
 	}
 	names[n] = NULL;
 	if (n == 0) {
-		osd_message("No Mac II or Quadra ROM in the roms folder (see roms/ROMS.txt).", TRUE);
+		osd_message(emu_machine() == BMMAC_PPC
+		            ? "No Power Mac ROM in the roms folder (see roms/ROMS.txt)."
+		            : "No Mac II or Quadra ROM in the roms folder (see roms/ROMS.txt).", TRUE);
 		return;
 	}
 	i = osd_choose("ROM", names, current);
@@ -209,12 +215,20 @@ static void rom_menu(void)
 
 static void memory_menu(void)
 {
+#ifdef BMMAC_PPC_BUILD
+	static const char *const names[] = {
+		"16 MB", "32 MB", "64 MB", "128 MB", "256 MB", "512 MB", "1 GB", NULL
+	};
+	static const int sizes[] = {16, 32, 64, 128, 256, 512, 1024};
+#else
 	static const char *const names[] = {
 		"8 MB", "16 MB", "32 MB", "64 MB", "128 MB", "256 MB", NULL
 	};
 	static const int sizes[] = {8, 16, 32, 64, 128, 256};
+#endif
+	const int count = (int) (sizeof sizes / sizeof sizes[0]);
 	int mb = PrefsFindInt32("ramsize") >> 20, current = 2, i;
-	for (i = 0; i < 6; i++)
+	for (i = 0; i < count; i++)
 		if (sizes[i] == mb)
 			current = i;
 	i = osd_choose("Memory", names, current);
@@ -225,10 +239,42 @@ static void memory_menu(void)
 	emu_cold_reset();
 }
 
+#ifndef BMMAC_PPC_BUILD
+/* The Mac II's model, as Mac OS sees it: a Quadra 900 with a 68040
+   (Basilisk II's best, and the default), or a Mac IIci with a 68030, for
+   System 7.0 to 7.1, which stop on a Quadra ("This startup disk will not
+   work on this Macintosh model", or a bomb). Either ROM runs either. */
+static const struct {
+	const char *name, *menu;
+	int modelid, cpu;
+} models[] = {
+	{"Quadra 900, 68040", "Quadra 900, 68040 (System 7.5 and later)", 14, 4},
+	{"Mac IIci, 68030", "Mac IIci, 68030 (System 7.0 to 7.1)", 5, 3},
+};
+
+static int current_model(void)
+{
+	return PrefsFindInt32("modelid") == models[1].modelid && PrefsFindInt32("cpu") == models[1].cpu;
+}
+
+static void model_menu(void)
+{
+	const char *names[] = {models[0].menu, models[1].menu, NULL};
+	int current = current_model();
+	int i = osd_choose("Model", names, current);
+	if (i < 0 || i == current)
+		return;
+	PrefsReplaceInt32("modelid", models[i].modelid);
+	PrefsReplaceInt32("cpu", models[i].cpu);
+	SavePrefs();
+	emu_cold_reset();
+}
+#endif
+
 /* ---- The menu's items ------------------------------------------------------------- */
 
 enum {
-	I_FLOPPY = 100, I_CDROM, I_HD, I_SHARED, I_ROM, I_MEMORY, I_RESTART
+	I_FLOPPY = 100, I_CDROM, I_HD, I_SHARED, I_ROM, I_MODEL, I_MEMORY, I_RESTART
 };
 
 int emu_menu_items(struct osd_item *items, int max)
@@ -252,6 +298,9 @@ int emu_menu_items(struct osd_item *items, int max)
 		{"Shared Folder (SD Card disk)", NULL, bmmac_check(extfs != NULL && extfs[0]), I_SHARED},
 		{"ROM", PrefsFindString("rom") ? bmmac_base_name(PrefsFindString("rom")) : "(none)",
 		 OSD_ITEM_SUBMENU, I_ROM},
+#ifndef BMMAC_PPC_BUILD
+		{"Model", models[current_model()].name, OSD_ITEM_SUBMENU, I_MODEL},
+#endif
 		{"Memory", ram, OSD_ITEM_SUBMENU, I_MEMORY},
 		{"Restart the Mac", NULL, 0, I_RESTART},
 	};
@@ -290,6 +339,11 @@ int emu_menu_choose(int id)
 	case I_ROM:
 		rom_menu();
 		return FALSE;
+#ifndef BMMAC_PPC_BUILD
+	case I_MODEL:
+		model_menu();
+		return FALSE;
+#endif
 	case I_MEMORY:
 		memory_menu();
 		return FALSE;

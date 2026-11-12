@@ -78,6 +78,16 @@ for its A/ROSE extension), `BMMAC_PLUS_DISK` an 800K System floppy (System
 4.3's *System Tools 1*, for one). They are copied before the tests use
 them. Without `BMMAC_ROMS` only the tests that need no ROM run.
 
+The Power Mac's tests (`build/macppc_sim`) tell its ROMs apart and ask for
+one when there is none, without Apple's files. With a Mac OS ROM file and
+a Mac OS 9 disk (`BMMAC_PPC_ROM`, `BMMAC_PPC_DISK`: a raw hard disk, a
+SheepShaver `.dmg` of one works) it starts Mac OS 9 to the Finder, with
+the network (slirp's DHCP and DNS) and the mouse:
+
+```
+BMMAC_PPC_ROM="Mac OS ROM" BMMAC_PPC_DISK=macos9.dmg tools/hostsim/run_tests.sh
+```
+
 Each test runs in its own folder under `tools/hostsim/out/`, which stands
 in for the SD card, with its log (`log.txt`) and screenshots (`.ppm`).
 

@@ -198,6 +198,13 @@ static double snd_last = 0.0;
 static long snd_written = 0, snd_underruns = 0, snd_writes = 0, snd_nonzero = 0;
 static double snd_min_fill = 1e9, snd_max_fill = 0;
 
+/* BMMAC_SIM_CHUNK=1536: the output takes its frames in blocks of that many
+   (as the Pi 5's HDMI driver does, src/av/sound.cpp), and a block the queue
+   is short of is padded with silence: counted as "short blocks". */
+static unsigned snd_chunk;
+static double snd_chunk_time;
+static long snd_short_chunks, snd_chunks;
+
 static void sound_advance(void)
 {
 	double played;
@@ -205,6 +212,22 @@ static void sound_advance(void)
 		return;
 	if (live)
 		now = real_time();
+	if (snd_chunk > 0) {
+		while (now - snd_chunk_time >= (double) snd_chunk / HW_RATE) {
+			snd_chunk_time += (double) snd_chunk / HW_RATE;
+			if (snd_buffered < snd_chunk) {
+				if (snd_written > HW_RATE)
+					snd_short_chunks++;
+				snd_buffered = 0;
+			} else {
+				snd_buffered -= snd_chunk;
+			}
+			if (snd_written > HW_RATE)
+				snd_chunks++;
+		}
+		snd_last = now;
+		return;
+	}
 	played = (now - snd_last) * HW_RATE;
 	snd_last = now;
 	if (played > snd_buffered) {
@@ -229,11 +252,19 @@ unsigned host_sound_open(unsigned freq, int channels, unsigned latency_frames)
 	snd_channels = channels;
 	snd_capacity = (unsigned) ((unsigned long) latency_frames * hw_rate / 44100);
 	snd_last = now;
+	snd_chunk_time = now;
+	if (getenv("BMMAC_SIM_CHUNK") != NULL)
+		snd_chunk = (unsigned) atoi(getenv("BMMAC_SIM_CHUNK"));
 	fprintf(stderr, "[sim] sound open: %d channel(s), %u frames\n", channels, snd_capacity);
 	return HW_RATE;
 }
 
 void host_sound_close(void) {}
+
+unsigned host_sound_block_frames(void)
+{
+	return getenv("BMMAC_SIM_CHUNK") != NULL ? (unsigned) atoi(getenv("BMMAC_SIM_CHUNK")) : 0;
+}
 
 unsigned host_sound_free_frames(void)
 {
@@ -527,6 +558,9 @@ static void run_script(void)
 			        frame, snd_written, snd_writes, snd_min_fill, snd_max_fill, snd_underruns,
 			        snd_nonzero);
 			fprintf(stderr, "[sim] frame %ld: %ld frames presented\n", frame, presents);
+			if (snd_chunk > 0)
+				fprintf(stderr, "[sim] frame %ld: %ld of %ld blocks of %u frames short\n", frame,
+				        snd_short_chunks, snd_chunks, snd_chunk);
 		} else if (strcmp(cmd, "quit") == 0) {
 			fprintf(stderr, "[sim] quit at frame %ld (%.2f s)\n", frame, now);
 			exit(0);
@@ -551,6 +585,18 @@ static void tick(void)
 	}
 	if (frame > 2000000)
 		exit(1);
+}
+
+void host_video_present_lines(int wait_vsync, int first, int last)
+{
+	(void) first;
+	(void) last;
+	host_video_present(wait_vsync);
+}
+
+int host_video_frame_due(void)
+{
+	return -1;
 }
 
 void host_video_present(int wait_vsync)

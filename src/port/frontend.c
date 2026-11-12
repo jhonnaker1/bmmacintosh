@@ -214,7 +214,7 @@ void bmmac_set_volume(int v)
    rate. The latency is asked for in 44.1 kHz frames (host.h). */
 unsigned bmmac_sound_rate(void)
 {
-	unsigned ms;
+	unsigned ms, block;
 	if (sound_opened)
 		return out_rate;
 	sound_opened = TRUE;
@@ -225,6 +225,16 @@ unsigned bmmac_sound_rate(void)
 		ms = 20;
 	if (ms > 500)
 		ms = 500;
+	/* Three blocks at least, the output's (the Pi 5's HDMI takes 32 ms
+	   at a time) or the Mac's (the Mac II and Power Mac make 43 ms at a
+	   time), whichever is bigger: the sound is kept half the latency
+	   ahead, which must hold more than one, or the output runs dry while
+	   the Mac makes the next. */
+	block = host_sound_block_frames();
+	if (emu_sound_block() > block)
+		block = emu_sound_block();
+	if (ms < block * 3 * 1000 / AO_RATE + 1)
+		ms = block * 3 * 1000 / AO_RATE + 1;
 	out_rate = host_sound_open(AO_RATE, 2, 44100 * ms / 1000);
 	out_latency = (out_rate ? out_rate : AO_RATE) * ms / 1000;
 	if (out_rate == 0)
@@ -232,11 +242,96 @@ unsigned bmmac_sound_rate(void)
 	return out_rate;
 }
 
+/* ---- Sound diagnostics: sound_test=1, and the log's figures ---- */
+
+/* With sound_test=1 in cmdline.txt, the first TONE_SECONDS after the sound
+   opens are a 440 Hz tone in place of the Mac's sound (and its silence),
+   through the same path: a clean tone puts a fault on the emulator's side,
+   a harsh one on the output's. */
+#define TONE_SECONDS 8
+static long tone_left = -1;          /* frames; -1 until read */
+static unsigned tone_phase;          /* 16.16 fixed point, of a 64 step table */
+
+static int tone_on(void)
+{
+	if (tone_left < 0)
+		tone_left = host_option_int("sound_test", 0) ? (long) AO_RATE * TONE_SECONDS : 0;
+	return tone_left > 0;
+}
+
+/* N stereo frames of the tone into OUT. */
+static void tone_frames(int16_t *out, unsigned n)
+{
+	static const int16_t sine[64] = {
+		0, 784, 1561, 2322, 3061, 3771, 4445, 5075, 5657, 6184, 6652, 7055,
+		7391, 7656, 7846, 7961, 8000, 7961, 7846, 7656, 7391, 7055, 6652, 6184,
+		5657, 5075, 4445, 3771, 3061, 2322, 1561, 784, 0, -784, -1561, -2322,
+		-3061, -3771, -4445, -5075, -5657, -6184, -6652, -7055, -7391, -7656, -7846, -7961,
+		-8000, -7961, -7846, -7656, -7391, -7055, -6652, -6184, -5657, -5075, -4445, -3771,
+		-3061, -2322, -1561, -784
+	};
+	/* 440 Hz: 64 steps a cycle, 440 * 64 / rate steps a frame. */
+	unsigned step = (unsigned) ((440ull * 64 << 16) / (out_rate ? out_rate : AO_RATE)), i;
+	for (i = 0; i < n; i++) {
+		/* Between the table's steps, linearly. */
+		int a = sine[(tone_phase >> 16) & 63], b = sine[((tone_phase >> 16) + 1) & 63];
+		int16_t s = (int16_t) (a + (((b - a) * (int) (tone_phase & 0xffff)) >> 16));
+		out[i * 2] = out[i * 2 + 1] = s;
+		tone_phase += step;
+	}
+	tone_left -= n;
+}
+
+/* Every 10 s in the log: frames written a second, what was dropped (no
+   room) and stretched (running dry), and the queue's lowest and highest. */
+static struct {
+	double since;
+	unsigned long written, dropped, silence, stretched, chunks, empty;
+	unsigned low, high;
+	double rate_low, rate_high;    /* the squeeze or stretch */
+} st = {0.0, 0, 0, 0, 0, 0, 0, ~0u, 0, 9.0, 0.0};
+
+static void sound_seen(unsigned used)
+{
+	if (used < st.low)
+		st.low = used;
+	if (used > st.high)
+		st.high = used;
+	if (used == 0)
+		st.empty++;
+}
+
+static void sound_report(void)
+{
+	double now = host_time(), span;
+	if (out_rate == 0)
+		return;
+	if (st.since == 0.0) {
+		st.since = now;
+		return;
+	}
+	span = now - st.since;
+	if (span < 10.0)
+		return;
+	printf("BMMacintosh: sound: %.0f frames a second (%u wanted), %lu dropped, %lu of silence, "
+	       "%lu of %lu blocks stretched, queue %u to %u of %u frames, empty %lu times, "
+	       "rate %+.2f%% to %+.2f%%\n",
+	       st.written / span, out_rate, st.dropped, st.silence, st.stretched, st.chunks,
+	       st.low == ~0u ? 0 : st.low, st.high, out_latency, st.empty,
+	       st.rate_high > 0.0 ? (1.0 / st.rate_high - 1.0) * 100.0 : 0.0,
+	       st.rate_high > 0.0 ? (1.0 / st.rate_low - 1.0) * 100.0 : 0.0);
+	memset(&st, 0, sizeof st);
+	st.low = ~0u;
+	st.rate_low = 9.0;
+	st.since = now;
+}
+
 /* N stereo frames to the output, at the volume. */
 static void write_frames(const int16_t *samples, unsigned n)
 {
 	static int16_t scaled[1024 * 2];
 	int v = bmmac_volume();
+	st.written += n;
 	if (v >= 100) {
 		host_sound_write(samples, n);
 		return;
@@ -267,11 +362,20 @@ void bmmac_feed_silence(void)
 	if (out_rate == 0)
 		return;
 	frames = host_sound_free_frames();
+	sound_seen(frames < out_latency ? out_latency - frames : 0);
 	if (frames > out_latency / 2) {
 		frames -= out_latency / 2;
 		while (frames > 0) {
 			unsigned n = frames > 2048 ? 2048 : frames;
-			host_sound_write(silence, n);
+			if (tone_on()) {
+				static int16_t tone[2048 * 2];
+				tone_frames(tone, n);
+				write_frames(tone, n);
+			} else {
+				host_sound_write(silence, n);
+				st.written += n;
+				st.silence += n;
+			}
 			frames -= n;
 		}
 	}
@@ -298,33 +402,64 @@ static void resample(const int16_t *in, unsigned n, int16_t *out, unsigned want)
 
 /* Up to PLAY_CHUNK stereo frames to the output, squeezed or stretched to
    keep the buffer about half full: the Mac's 60.15 Hz locked to a 60 Hz
-   display runs 0.25% fast. */
+   display runs 0.25% fast. By the buffer's level over about a second, and
+   by 0.5% at most: the Pi 5's HDMI takes 32 ms at a time, so the level
+   swings by that, and steering by it as it was made the pitch waver by
+   nearly 1% 31 times a second (a metallic sound). */
 static void play_chunk(const int16_t *samples, unsigned n)
 {
 	static int16_t buf[(PLAY_CHUNK * 2 + 1) * 2];
 	static double carry;   /* the fraction of a frame left over */
+	static double level = -1.0;    /* the level, averaged */
 	unsigned free_frames, used, want;
 	free_frames = host_sound_free_frames();
 	used = free_frames < out_latency ? out_latency - free_frames : 0;
+	sound_seen(used);
+	st.chunks++;
+	if (level < 0.0 || used == 0) {
+		/* Empty (starting, or the Mac stopped a while): silence to half
+		   full, the gap there would be anyway, rather than a long stretch
+		   to fill it. */
+		unsigned pad = out_latency / 2;
+		while (pad > 0) {
+			unsigned m = pad > 2048 ? 2048 : pad;
+			host_sound_write(silence, m);
+			st.written += m;
+			st.silence += m;
+			pad -= m;
+		}
+		used = out_latency / 2;
+		free_frames = out_latency - used;
+		level = used;
+	}
+	/* Each chunk moves it 1/64 of the way: about 0.5 s at 120 chunks a
+	   second. */
+	level += (used - level) / 64.0;
 	if (n < 2) {
 		want = n;
-	} else if (used < out_latency / 4) {
-		/* Running dry (the emulation slower than real time): stretched
-		   to up to twice its length, lower in pitch, rather than gaps. */
+	} else if (level < out_latency / 4) {
+		/* Running dry (the emulation slower than real time, for a while:
+		   the level averaged): stretched to up to twice its length, lower
+		   in pitch, rather than gaps. */
 		unsigned quarter = out_latency / 4;
-		want = n + 1 + n * (quarter - used) / quarter;
+		want = n + 1 + (unsigned) (n * (quarter - level) / quarter);
 		if (want > PLAY_CHUNK * 2 + 1)
 			want = PLAY_CHUNK * 2 + 1;
 		carry = 0.0;
+		st.stretched++;
 	} else {
 		double half = out_latency / 2.0;
-		double error = (half - used) / half;   /* 1 empty, -1 full */
+		double error = (half - level) / half;   /* 1 empty, -1 full */
 		double exact;
 		if (error > 1.0)
 			error = 1.0;
 		if (error < -1.0)
 			error = -1.0;
-		exact = n * (1.0 + 0.02 * error) + carry;
+		exact = n * (1.0 + 0.005 * error) + carry;
+		if (exact / n < st.rate_low)
+			st.rate_low = exact / n;
+		if (exact / n > st.rate_high)
+			st.rate_high = exact / n;
 		want = (unsigned) exact;
 		carry = exact - want;
 	}
@@ -333,8 +468,10 @@ static void play_chunk(const int16_t *samples, unsigned n)
 		samples = buf;
 		n = want;
 	}
-	if (n > free_frames)
+	if (n > free_frames) {
+		st.dropped += n - free_frames;
 		n = free_frames;          /* no room at all (far ahead): drop it */
+	}
 	if (n > 0)
 		write_frames(samples, n);
 }
@@ -345,6 +482,14 @@ void bmmac_sound_play(const int16_t *samples, unsigned n)
 		return;
 	while (n > 0) {
 		unsigned m = n > PLAY_CHUNK ? PLAY_CHUNK : n;
+		if (tone_on()) {
+			static int16_t tone[PLAY_CHUNK * 2];
+			tone_frames(tone, m);
+			play_chunk(tone, m);
+			samples += m * 2;
+			n -= m;
+			continue;
+		}
 		play_chunk(samples, m);
 		samples += m * 2;
 		n -= m;
@@ -573,6 +718,26 @@ void bmmac_idle(void)
 
 static int speed_percent = 100;
 static double frame_due;
+
+/* The lines of the frame buffer changed since the last frame was shown
+   (bmmac_screen_lines()): only they are drawn again on the display. */
+static int dirty_first = 1 << 30, dirty_last = -1;
+
+void bmmac_screen_lines(int first, int last)
+{
+	if (first < dirty_first)
+		dirty_first = first;
+	if (last > dirty_last)
+		dirty_last = last;
+}
+
+int bmmac_frame_due(void)
+{
+	/* Paced by the clock (no vsync lock): the emulator paces itself. */
+	if (!vsync_lock)
+		return -1;
+	return host_video_frame_due();
+}
 static double last_second;
 static long frames, frames_at_second;
 
@@ -609,8 +774,14 @@ void bmmac_frame(void)
 		emu_screen_view(&w, &h, &aspect);
 		overlay_drawn = osd_draw_notification(fb_pixels, fb_pitch_px, w, h);
 		overlay_drawn |= draw_disk_light(w, h);
+		if (overlay_drawn)
+			bmmac_screen_lines(0, BMMAC_FB_H - 1);
+	} else {
+		bmmac_screen_lines(0, BMMAC_FB_H - 1);
 	}
-	host_video_present(vsync_lock);
+	host_video_present_lines(vsync_lock, dirty_first, dirty_last);
+	dirty_first = 1 << 30;
+	dirty_last = -1;
 	if (!vsync_lock) {
 		/* Paced by the clock instead. */
 		double period = 1.0 / emu_frame_rate();
@@ -645,6 +816,7 @@ void bmmac_frame(void)
 		emu_sync_disks();
 		sync_files();
 		show_network_address();
+		sound_report();
 	}
 	handle_requests();
 }

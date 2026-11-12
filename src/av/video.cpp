@@ -17,6 +17,7 @@
 #include <circle/sched/scheduler.h>
 #include <circle/synchronize.h>
 #include <circle/timer.h>
+#include <circle/multicore.h>
 #include <string.h>
 
 static const char FromVideo[] = "video";
@@ -75,7 +76,14 @@ Pi4Video::Pi4Video(void)
       m_Driver(Driver::Firmware), m_pKmsTarget(0),
       m_nKmsPitch(0), m_pGpuOffered(0), m_pGpu(0), m_bGpuReady(false),
       m_nKmsSrcW(0), m_nKmsSrcH(0), m_fKmsAspect(1.0), m_fKmsScale(1.0),
-      m_bKmsResize(false) {
+      m_bKmsResize(false), m_bPresenter(false), m_nPosted(0), m_nDrawn(0),
+      m_nShown(0), m_bPostWait(false), m_nPostFirst(0), m_nPostLast(-1),
+      m_pStage(0), m_pDraw(0) {
+  for (unsigned i = 0; i < 2; i++) {
+    m_Dirty[i].buffer = 0;
+    m_Dirty[i].first = 0;
+    m_Dirty[i].last = 1 << 30;
+  }
   for (unsigned i = 0; i < 4; i++) {
     m_pLine[i] = 0;
   }
@@ -85,6 +93,7 @@ Pi4Video::~Pi4Video(void) {
   delete m_pKms;
   delete m_pFrameBuffer;
   delete[] m_pSource;
+  delete[] m_pStage;
   delete[] m_pColumn;
   for (unsigned i = 0; i < 4; i++) {
     delete[] m_pLine[i];
@@ -231,9 +240,14 @@ int Pi4Video::Allocate(int width, int height, uint16_t **pixels, int *pitch) {
   if (m_pFrameBuffer == 0) {
     return -1;
   }
+  WaitPresenter(true);
   delete[] m_pSource;
   m_pSource = new uint16_t[(size_t)width * height];
   memset(m_pSource, 0, (size_t)width * height * sizeof *m_pSource);
+  delete[] m_pStage;
+  m_pStage = new uint16_t[(size_t)width * height];
+  memset(m_pStage, 0, (size_t)width * height * sizeof *m_pStage);
+  MarkDirty(0, 1 << 30);
   m_nSourceWidth = width;
   m_nSourceHeight = height;
   *pixels = m_pSource;
@@ -253,6 +267,7 @@ void Pi4Video::SetView(int x, int y, int w, int h, double aspect,
   if (m_pFrameBuffer == 0 || w <= 0 || h <= 0) {
     return;
   }
+  WaitPresenter(true);
   if (m_pKms != 0) {
     SetViewKms(x, y, w, h, aspect, scale);
     return;
@@ -358,17 +373,19 @@ void Pi4Video::CopyLine(uint8_t *dst, uint32_t *line) const {
 }
 
 // Pi4FrameShare's job: the scaler's two steps.
-void Pi4Video::Prepare(unsigned item) { m_Scaler.Prepare(m_pSource, item); }
+void Pi4Video::Prepare(unsigned item) {
+  m_Scaler.Prepare(m_pDraw != 0 ? m_pDraw : m_pSource, item);
+}
 
 void Pi4Video::Render(unsigned row, unsigned core) {
   if (m_pKmsTarget != 0) {
     // Straight into the direct driver's buffer (ordinary memory; the HVS
     // ignores the alpha byte).
-    m_Scaler.Render(m_pSource, row, (uint32_t *)(m_pKmsTarget + (size_t)row * m_nKmsPitch));
+    m_Scaler.Render(m_pDraw, row, (uint32_t *)(m_pKmsTarget + (size_t)row * m_nKmsPitch));
     return;
   }
   uint32_t *line = m_pLine[core];
-  m_Scaler.Render(m_pSource, row, line);
+  m_Scaler.Render(m_pDraw, row, line);
   CopyLine(m_pJobPage + (size_t)(m_nDestY + row) * m_nPitch +
                m_nDestX * (m_nDepth / 8),
            line);
@@ -380,6 +397,9 @@ void Pi4Video::WorkerLoop(unsigned core) {
     WaitForEvent();
   }
   Pi4Video *video = s_pThis;
+  if (core == 3 && video->m_pKms != 0) {
+    video->PresenterLoop();
+  }
   if (!video->m_bFiltered || core >= 4 || video->m_pLine[core] == 0) {
     for (;;) {
       asm volatile("wfi");
@@ -388,10 +408,101 @@ void Pi4Video::WorkerLoop(unsigned core) {
   video->m_Share.Help(*video, core);
 }
 
-void Pi4Video::Present(bool wait_vsync) {
+// Core 1: a frame. With the presenter (core 3) running, the lines changed
+// are copied for it to draw from and it is told; otherwise the frame is
+// drawn and shown here.
+void Pi4Video::Present(bool wait_vsync, int first, int last) {
   if (m_pFrameBuffer == 0 || m_pSource == 0) {
     return;
   }
+  if (!Presenting()) {
+    m_pDraw = m_pSource;
+    MarkDirty(first, last);
+    PresentFrame(wait_vsync);
+    return;
+  }
+  // The frame before must be drawn (STAGE is free) and, with WAIT_VSYNC,
+  // shown (the frames' pace).
+  WaitPresenter(wait_vsync);
+  if (first < 0) {
+    first = 0;
+  }
+  if (last >= m_nSourceHeight) {
+    last = m_nSourceHeight - 1;
+  }
+  if (first <= last) {
+    memcpy(m_pStage + (size_t)first * m_nSourceWidth, m_pSource + (size_t)first * m_nSourceWidth,
+           (size_t)(last - first + 1) * m_nSourceWidth * sizeof *m_pSource);
+  }
+  m_nPostFirst = first;
+  m_nPostLast = last;
+  m_bPostWait = wait_vsync;
+  __atomic_store_n(&m_nPosted, m_nPosted + 1, __ATOMIC_RELEASE);
+  DataSyncBarrier();
+  SendEvent();
+}
+
+int Pi4Video::FrameDue(void) {
+  if (!Presenting()) {
+    return -1;
+  }
+  return __atomic_load_n(&m_nShown, __ATOMIC_ACQUIRE) == m_nPosted ? 1 : 0;
+}
+
+bool Pi4Video::Presenting(void) const {
+  return m_pKms != 0 && __atomic_load_n(&m_bPresenter, __ATOMIC_ACQUIRE);
+}
+
+// Core 1: waits until the presenter has drawn (or, SHOWN, shown) every
+// frame posted. Circle's tasks run meanwhile (they run only when core 1
+// yields).
+void Pi4Video::WaitPresenter(bool shown) {
+  // Not on core 3 itself (SetViewKms() may go back to the framebuffer).
+  if (!__atomic_load_n(&m_bPresenter, __ATOMIC_ACQUIRE) || CMultiCoreSupport::ThisCore() == 3) {
+    return;
+  }
+  volatile unsigned *count = shown ? &m_nShown : &m_nDrawn;
+  while (__atomic_load_n(count, __ATOMIC_ACQUIRE) != m_nPosted) {
+    CScheduler::Get()->Yield();
+  }
+}
+
+// The lines changed since each of the direct driver's buffers was drawn.
+void Pi4Video::MarkDirty(int first, int last) {
+  for (unsigned i = 0; i < 2; i++) {
+    if (first < m_Dirty[i].first) {
+      m_Dirty[i].first = first;
+    }
+    if (last > m_Dirty[i].last) {
+      m_Dirty[i].last = last;
+    }
+  }
+}
+
+// Core 3: shows the frames core 1 posts, forever.
+void Pi4Video::PresenterLoop(void) {
+  unsigned seen = __atomic_load_n(&m_nPosted, __ATOMIC_ACQUIRE);
+  __atomic_store_n(&m_nDrawn, seen, __ATOMIC_RELEASE);
+  __atomic_store_n(&m_nShown, seen, __ATOMIC_RELEASE);
+  __atomic_store_n(&m_bPresenter, true, __ATOMIC_RELEASE);
+  CLogger::Get()->Write(FromVideo, LogNotice, "Frames shown by core 3");
+  for (;;) {
+    while (__atomic_load_n(&m_nPosted, __ATOMIC_ACQUIRE) == seen) {
+      WaitForEvent();
+    }
+    seen = __atomic_load_n(&m_nPosted, __ATOMIC_ACQUIRE);
+    m_pDraw = m_pStage;
+    MarkDirty(m_nPostFirst, m_nPostLast);
+    PresentFrame(m_bPostWait);
+    // PresentKms() counted it drawn before the wait for the blank.
+    __atomic_store_n(&m_nDrawn, seen, __ATOMIC_RELEASE);
+    __atomic_store_n(&m_nShown, seen, __ATOMIC_RELEASE);
+    DataSyncBarrier();
+    SendEvent();
+  }
+}
+
+void Pi4Video::PresentFrame(bool wait_vsync) {
   v3d::Crt *offered = __atomic_load_n(&m_pGpuOffered, __ATOMIC_ACQUIRE);
   if (offered != 0 && m_pGpu == 0) {
     __atomic_store_n(&m_pGpuOffered, (v3d::Crt *)0, __ATOMIC_RELAXED);
@@ -427,7 +538,7 @@ void Pi4Video::Present(bool wait_vsync) {
     }
   } else if (m_pGpu != 0 && m_bGpuReady) {
     v3d::Target target = {page, m_nWidth, m_nHeight, m_nPitch};
-    if (!m_pGpu->Draw(m_pSource, target, (int)m_nDestX, (int)m_nDestY)) {
+    if (!m_pGpu->Draw(m_pDraw, target, (int)m_nDestX, (int)m_nDestY)) {
       DropGpu("drawing failed");
     }
   } else if (m_bScalerReady) {
@@ -491,6 +602,7 @@ bool Pi4Video::MatchRate(double fps, unsigned audio_fs, unsigned lines) {
   if (m_pKms == 0 || m_Driver != Driver::Kms) {
     return false;
   }
+  WaitPresenter(true);
 #if RASPPI >= 5
   unsigned width = m_pKms->Width(), height = m_pKms->Height();
   bool changed = m_pKms->MatchRate(fps, audio_fs, lines);
@@ -514,6 +626,7 @@ bool Pi4Video::ResolutionChoice(void) const {
 }
 
 void Pi4Video::Blank(void) {
+  WaitPresenter(true);
   if (m_pKms != 0) {
     m_pKms->Blank();
     return;
@@ -535,6 +648,8 @@ void Pi4Video::Blank(void) {
 // lines (720 curved and smooth), which the HVS enlarges sharply.
 void Pi4Video::SetViewKms(int x, int y, int w, int h, double aspect,
                           double scale) {
+  // The driver's buffers may be new: all of them is drawn again.
+  m_Dirty[0].buffer = m_Dirty[1].buffer = 0;
   if (scale <= 0.1 || scale > 1.0) {
     scale = 1.0;
   }
@@ -588,36 +703,81 @@ void Pi4Video::SetViewKms(int x, int y, int w, int h, double aspect,
 }
 
 void Pi4Video::PresentKms(bool wait_vsync) {
+  // Every 600 frames the log says how long drawing and waiting took.
+  static u64 draw_us, wait_us;
+  static unsigned frames;
+  u64 start = CTimer::GetClockTicks64();
   unsigned pitch;
   uint32_t *buffer = m_pKms->BeginFrame(&pitch);
   if (buffer == 0) {
     return;
   }
+  // The lines changed since this buffer was last drawn (all for a buffer
+  // not seen before), then none.
+  Dirty *dirty = &m_Dirty[0];
+  if (m_Dirty[0].buffer != buffer) {
+    dirty = &m_Dirty[1];
+    if (m_Dirty[1].buffer != buffer) {
+      // A new buffer: the older entry is replaced, all of it to draw.
+      dirty = m_Dirty[0].buffer == 0 || m_Dirty[1].buffer != 0 ? &m_Dirty[0] : &m_Dirty[1];
+      dirty->buffer = buffer;
+      dirty->first = 0;
+      dirty->last = 1 << 30;
+    }
+  }
+  int first = dirty->first - m_nViewY, last = dirty->last - m_nViewY;
+  dirty->first = 1 << 30;
+  dirty->last = -1;
   if (m_bCrt && m_pGpu != 0 && m_bGpuReady) {
     v3d::Target target = {buffer, m_nKmsSrcW, m_nKmsSrcH, pitch * 4};
-    if (!m_pGpu->Draw(m_pSource, target, 0, 0)) {
+    if (!m_pGpu->Draw(m_pDraw, target, 0, 0)) {
       DropGpu("drawing failed");
     }
   } else if (m_bCrt) {
     if (!m_bScalerReady) {
       return;
     }
-    // Cores 2 and 3 help, as for the framebuffer.
+    // Cores 2 and 3 help, as for the framebuffer (core 2 only when core 3
+    // shows the frames).
     m_pKmsTarget = (uint8_t *)buffer;
     m_nKmsPitch = pitch * 4;
-    m_Share.Run(*this, 1, m_Scaler.PrepareCount(), m_Scaler.Height());
+    m_Share.Run(*this, CMultiCoreSupport::ThisCore(), m_Scaler.PrepareCount(),
+                m_Scaler.Height());
     m_pKmsTarget = 0;
   } else {
-    // The view in colour, as it is; the HVS scales it.
-    for (int y = 0; y < m_nViewH; y++) {
-      const uint16_t *src = m_pSource + (size_t)(m_nViewY + y) * m_nSourceWidth + m_nViewX;
+    // The view in colour, as it is; the HVS scales it. Only the lines
+    // changed.
+    if (first < 0) {
+      first = 0;
+    }
+    if (last >= m_nViewH) {
+      last = m_nViewH - 1;
+    }
+    for (int y = first; y <= last; y++) {
+      const uint16_t *src = m_pDraw + (size_t)(m_nViewY + y) * m_nSourceWidth + m_nViewX;
       uint32_t *dst = buffer + (size_t)y * pitch;
       for (int x = 0; x < m_nViewW; x++) {
         dst[x] = Pi4Rgb565ToArgb(src[x]);
       }
     }
   }
+  // Drawn: core 1 may change STAGE again.
+  if (CMultiCoreSupport::ThisCore() == 3) {
+    __atomic_store_n(&m_nDrawn, m_nPosted, __ATOMIC_RELEASE);
+    DataSyncBarrier();
+    SendEvent();
+  }
+  u64 drawn = CTimer::GetClockTicks64();
   m_pKms->EndFrame(wait_vsync);
+  u64 shown = CTimer::GetClockTicks64();
+  draw_us += drawn - start;
+  wait_us += shown - drawn;
+  if (++frames >= 600) {
+    CLogger::Get()->Write(FromVideo, LogNotice, "A frame: %u us drawing, %u us waiting",
+                          (unsigned)(draw_us / frames), (unsigned)(wait_us / frames));
+    draw_us = wait_us = 0;
+    frames = 0;
+  }
 }
 
 //

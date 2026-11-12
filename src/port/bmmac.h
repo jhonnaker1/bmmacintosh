@@ -67,16 +67,17 @@ enum {
 enum {
 	BMMAC_PLUS = 0,    /* Mac Plus: umac */
 	BMMAC_II = 1,      /* Mac II and Quadra: Basilisk II */
+	BMMAC_PPC = 2,     /* Power Macintosh: SheepShaver (the Pi 5) */
 	BMMAC_MACHINES
 };
 
 /* ---- frontend.c ----------------------------------------------------------- */
 
 /* The frame buffer's size (the biggest Mac screen): the Mac II's
-   1600x1200, the Mac Plus's 1024x768 (its kernels run on the small Pis
+   and the Power Mac's 1600x1200, the Mac Plus's 1024x768 (its kernels run on the small Pis
    too, so it keeps the size it always had). */
-#define BMMAC_FB_W (emu_machine() == BMMAC_II ? 1600 : 1024)
-#define BMMAC_FB_H (emu_machine() == BMMAC_II ? 1200 : 768)
+#define BMMAC_FB_W (emu_machine() != BMMAC_PLUS ? 1600 : 1024)
+#define BMMAC_FB_H (emu_machine() != BMMAC_PLUS ? 1200 : 768)
 
 /* Starts the display and sound, then the emulator (emu_main()). */
 void bmmac_main(void);
@@ -90,6 +91,13 @@ uint16_t *bmmac_framebuffer(int *pitch_px);
 void bmmac_osd_view(int on);
 /* The Mac's screen changed size: the display shows the new one. */
 void bmmac_screen_changed(void);
+/* emu_screen_copy() changed lines FIRST to LAST of the frame buffer: only
+   the lines changed are drawn again on the display. */
+void bmmac_screen_lines(int first, int last);
+/* Is the next frame due (1) or not yet (0)? -1 if the emulator paces
+   itself (see host_video_frame_due()): bmmac_frame() then waits for the
+   frame. */
+int bmmac_frame_due(void);
 /* Called while a menu waits: keeps sound fed and runs network requests. */
 void bmmac_idle(void);
 double bmmac_refresh_rate(void);
@@ -164,7 +172,8 @@ struct bmmac_rom {
 	char name[64];        /* "Quadra 650/800 (F1ACAD13)" */
 	uint32_t checksum;    /* the ROM's own, its first four bytes */
 	uint32_t size;
-	int machine;          /* BMMAC_PLUS, BMMAC_II, or -1: neither can run it */
+	int machine;          /* BMMAC_PLUS, BMMAC_II, BMMAC_PPC, or -1: none can run it */
+	int preferred;        /* a Mac OS ROM file's rank as the default (roms.c) */
 };
 
 /* Looks for ROMs in the card's roms folder (and its root). */
@@ -195,7 +204,7 @@ void bmmac_reboot_needed(void);
 
 /* ---- The emulator (src/port/ii/ or src/port/plus/) ------------------------ */
 
-/* BMMAC_PLUS or BMMAC_II. */
+/* BMMAC_PLUS, BMMAC_II or BMMAC_PPC. */
 int emu_machine(void);
 /* Runs the Mac, calling bmmac_frame() once a frame. Doesn't return. */
 void emu_main(void);
@@ -205,6 +214,9 @@ const char *emu_machine_text(void);
 const char *emu_credits(void);
 /* The Mac's frame rate (60.15 Hz). */
 double emu_frame_rate(void);
+/* How many frames of sound the Mac makes at a time (0: a frame's): the
+   sound buffer holds three of them at least (frontend.c). */
+unsigned emu_sound_block(void);
 /* The Mac's screen: its size, and the display's aspect ratio for it. */
 void emu_screen_view(int *w, int *h, double *aspect);
 /* Copies the Mac's screen to the frame buffer, if it changed (or FORCE).

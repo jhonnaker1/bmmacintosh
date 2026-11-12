@@ -840,15 +840,21 @@ bool CKernel::DisplayMatchRate(double fps) {
 bool CKernel::DisplayResolutionChoice(void) { return mVideo.ResolutionChoice(); }
 
 void CKernel::VideoPresent(int wait_vsync) {
+  VideoPresentLines(wait_vsync, 0, 1 << 30);
+}
+
+void CKernel::VideoPresentLines(int wait_vsync, int first, int last) {
   // Let Circle's tasks (the network, the web UI) run once per frame.
   Core1Beat("running Circle tasks");
   CScheduler::Get()->Yield();
   Core1Beat("writing the log file");
   mLog.Drain();
   Core1Beat("showing a frame (framebuffer)");
-  mVideo.Present(wait_vsync != 0);
+  mVideo.Present(wait_vsync != 0, first, last);
   Core1Beat("emulating");
 }
+
+int CKernel::VideoFrameDue(void) { return mVideo.FrameDue(); }
 
 //
 // Sound
@@ -866,6 +872,8 @@ void CKernel::SoundClose(void) {
 }
 
 unsigned CKernel::SoundFreeFrames(void) { return mPi4Sound.FreeFrames(); }
+
+unsigned CKernel::SoundBlockFrames(void) { return Pi4Sound::BlockFrames(); }
 
 void CKernel::SoundWrite(const int16_t *samples, unsigned frames) {
   Core1Beat("writing sound (HDMI)");
@@ -931,6 +939,14 @@ bool CKernel::DisplayMatchRate(double fps) {
 
 bool CKernel::DisplayResolutionChoice(void) { return false; }
 
+void CKernel::VideoPresentLines(int wait_vsync, int first, int last) {
+  (void)first;
+  (void)last;
+  VideoPresent(wait_vsync);
+}
+
+int CKernel::VideoFrameDue(void) { return -1; }
+
 void CKernel::VideoPresent(int wait_vsync) {
   // Let Circle's tasks (VCHIQ in particular) run once per frame.
   Core1Beat("running Circle tasks");
@@ -969,6 +985,8 @@ unsigned CKernel::SoundOpen(unsigned freq, int channels,
 void CKernel::SoundClose(void) {
   // The VCHIQ audio service is left open; reopening it is slow.
 }
+
+unsigned CKernel::SoundBlockFrames(void) { return 0; }
 
 unsigned CKernel::SoundFreeFrames(void) {
   return mSound != 0 && mSound->PlaybackActive() ? mSound->FreeFrames() : 0;
@@ -1177,11 +1195,21 @@ void host_video_present(int wait_vsync) {
   CKernel::Get()->VideoPresent(wait_vsync);
 }
 
+void host_video_present_lines(int wait_vsync, int first, int last) {
+  CKernel::Get()->VideoPresentLines(wait_vsync, first, last);
+}
+
+int host_video_frame_due(void) { return CKernel::Get()->VideoFrameDue(); }
+
 unsigned host_sound_open(unsigned freq, int channels, unsigned latency_frames) {
   return CKernel::Get()->SoundOpen(freq, channels, latency_frames);
 }
 
 void host_sound_close(void) { CKernel::Get()->SoundClose(); }
+
+unsigned host_sound_block_frames(void) {
+  return CKernel::Get()->SoundBlockFrames();
+}
 
 unsigned host_sound_free_frames(void) {
   return CKernel::Get()->SoundFreeFrames();

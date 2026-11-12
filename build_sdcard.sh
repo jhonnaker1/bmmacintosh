@@ -9,13 +9,15 @@
 #   pi3     macplus8-32.img: Pi 3 and Pi Zero 2 W
 #   pi2     macplus7.img: Pi 2
 #   pi0     macplus.img: Pi Zero and Zero W
-#   pi4     macplus8-rpi4.img, macii8-rpi4.img and armstub8-rpi4.bin: Pi 4 B
-#           and Pi 400
-#   pi5     macplus_2712.img and macii_2712.img: Pi 5, Pi 500 and Pi 500+
+#   pi4     macplus8-rpi4.img, macii8-rpi4.img, macppc8-rpi4.img and
+#           armstub8-rpi4.bin: Pi 4 B and Pi 400
+#   pi5     macplus_2712.img, macii_2712.img and macppc_2712.img: Pi 5,
+#           Pi 500 and Pi 500+
 #   (none)  all of them, as a release has
 #
 # The macplus kernels are the Mac Plus (umac), the macii ones the Mac II
-# and Quadra (Basilisk II).
+# and Quadra (Basilisk II), the macppc ones the Power Mac (SheepShaver: the
+# Pi 5's; the Pi 4's is built for QEMU's raspi4b, tools/qemu).
 #
 # Several boards can be given, e.g. ./build_sdcard.sh pi4 pi5.
 #
@@ -79,8 +81,8 @@ kernel_names() {
         pi0) echo macplus.img ;;
         pi2) echo macplus7.img ;;
         pi3) echo macplus8-32.img ;;
-        pi4) echo macplus8-rpi4.img macii8-rpi4.img ;;
-        pi5) echo macplus_2712.img macii_2712.img ;;
+        pi4) echo macplus8-rpi4.img macii8-rpi4.img macppc8-rpi4.img ;;
+        pi5) echo macplus_2712.img macii_2712.img macppc_2712.img ;;
     esac
 }
 
@@ -160,7 +162,7 @@ folder_readme() {
     printf '%s\r\n' "$2" > "$STAGING_DIR/$1/README.txt"
 }
 folder_readme disks    "The Mac's disk images: hard disks and floppies (.dsk .img .image .hfv .hda), CD-ROMs (.iso .toast). See README.txt."
-folder_readme shared   "This folder is a disk on the Mac II's desktop, named SD Card (menu, F12, Shared Folder): copy files here to give them to the Mac."
+folder_readme shared   "This folder is a disk on the Mac II's and the Power Mac's desktop, named SD Card (menu, F12, Shared Folder): copy files here to give them to the Mac."
 # The ROMs are the user's own (Apple's aren't free): what to put here.
 mkdir -p "$STAGING_DIR/roms"
 cp "$SRC_DIR/docs/ROMS.txt" "$STAGING_DIR/roms/ROMS.txt"

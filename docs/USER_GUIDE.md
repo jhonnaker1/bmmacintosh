@@ -1,30 +1,52 @@
 # BMMacintosh User Guide
 
-BMMacintosh turns a Raspberry Pi into a 68k Macintosh: a Mac II or Quadra
-(a 68040 with an FPU, System 7 to Mac OS 8.1) on a Pi 4 or 5, and a Mac
-Plus on every Pi. It runs the emulators on the bare hardware, so it starts
+BMMacintosh turns a Raspberry Pi into a Macintosh: a Mac II or Quadra
+(a 68040 with an FPU, System 7 to Mac OS 8.1) on a Pi 4 or 5, a Power Mac
+(Mac OS 8.5 to 9.0.4) on a Pi 5, and a Mac Plus on every Pi. It runs the emulators on the bare hardware, so it starts
 in a couple of seconds and can be switched off at any time.
 
-## The two Macs
+## The three Macs
 
-| | Mac II and Quadra | Mac Plus |
-|---|---|---|
-| Emulator | Basilisk II (kanjitalk755's macemu) | umac (Matt Evans), with Musashi |
-| Kernels | `macii8-rpi4.img`, `macii_2712.img` | `macplus.img`, `macplus7.img`, `macplus8-32.img`, `macplus8-rpi4.img`, `macplus_2712.img` |
-| Pi | 4, 400, 5, 500, 500+ | every Pi |
-| CPU | 68040 with an FPU (or a 68020 or 68030) | 68000, 7.83 MHz |
-| Memory | 8 to 256 MB | 128K to 4 MB |
-| Screen | 640x480, 800x600, 832x624, 1024x768, 1152x870, 1280x1024, and 1600x1200 on a display of 1080 lines or more; black and white to millions of colours (the Monitors control panel) | 512x342, black and white |
-| ROM | a IIci's or a Quadra's (best a Quadra 650's or 800's) | the Mac Plus's (its last) |
-| Disks | hard disks, two floppy drives, a CD-ROM drive, and a folder on the card (*SD Card*) | one disk, a floppy's or a hard disk's |
-| Settings | `macii.prefs` (Basilisk II's own) | `bmmac.cfg` |
+| | Mac II and Quadra | Power Mac | Mac Plus |
+|---|---|---|---|
+| Emulator | Basilisk II (kanjitalk755's macemu) | SheepShaver (kanjitalk755's macemu) | umac (Matt Evans), with Musashi |
+| Kernels | `macii8-rpi4.img`, `macii_2712.img` | `macppc_2712.img` | `macplus.img`, `macplus7.img`, `macplus8-32.img`, `macplus8-rpi4.img`, `macplus_2712.img` |
+| Pi | 4, 400, 5, 500, 500+ | 5, 500, 500+ | every Pi |
+| CPU | 68040 with an FPU (or a 68020 or 68030) | PowerPC G4 (7400), interpreted | 68000, 7.83 MHz |
+| Memory | 8 to 256 MB | 16 MB to 1 GB | 128K to 4 MB |
+| Screen | 640x480, 800x600, 832x624, 1024x768, 1152x870, 1280x1024, and 1600x1200 on a display of 1080 lines or more; black and white to millions of colours (the Monitors control panel) | 640x480, 800x600, 1024x768, 1152x870, 1280x1024, and 1600x1200 on a display of 1080 lines or more, black and white to millions of colours | 512x342, black and white |
+| ROM | a IIci's or a Quadra's (best a Quadra 650's or 800's) | a "Mac OS ROM" file, or an Old World PCI Power Mac's ROM | the Mac Plus's (its last) |
+| Disks | hard disks, two floppy drives, a CD-ROM drive, and a folder on the card (*SD Card*) | the same | one disk, a floppy's or a hard disk's |
+| Settings | `macii.prefs` (Basilisk II's own) | `macppc.prefs` (SheepShaver's own) and `macppc.nvram` | `bmmac.cfg` |
 
-Each is a kernel of its own (two 68k CPU cores in one program would
-clash). The Pi's firmware starts the one `config.txt` names. **Machine** in
-the menu switches: it changes the `kernel=` lines of `config.txt`'s `[pi4]`
+Each is a kernel of its own (two emulators in one program would clash).
+The Pi's firmware starts the one `config.txt` names. **Machine** in the
+menu switches: it changes the `kernel=` lines of `config.txt`'s `[pi4]`
 and `[pi5]` sections and restarts the Pi. A Pi 4 or 5 starts as a Mac II
-the first time; a Pi Zero, 2 or 3 is always a Mac Plus. Both Macs use the
+the first time; a Pi Zero, 2 or 3 is always a Mac Plus. The Macs use the
 same card: the ROMs, the disks, the web UI and BMMacintosh's settings.
+
+### The Power Mac
+
+SheepShaver's PowerPC has no JIT for ARM (it has one for x86 only), so it
+is interpreted: on a Pi 5 Mac OS 9 is usable, though not fast, and takes
+about a minute to start. Tested in the PC simulator:
+
+| Mac OS | New World ROM (Mac OS ROM file) | Old World ROM (a PCI Power Mac's) |
+|--------|----------------------------------|-----------------------------------|
+| 9.0.4  | 1.1, 1.1.2, 1.2, 1.4, 1.6        | 7200–9500, 7300–9600, 6400, 6500, G3 desktop |
+| 9.0    | the same                         | the same |
+| 8.6    | the same                         | the same |
+| 8.5.1  | 1.1.2 only                       | G3 desktop only |
+| 7.5.5  | —                                | 7200–9500, 7300–9600, 6400, 6500, G3 desktop |
+
+Mac OS 9.0.4 with Mac OS ROM 1.6 is also tested on a Pi 5, Internet
+Explorer and the network included. See `roms/ROMS.txt` for the ROMs. A
+System Folder installed on a 68k Mac may not start on the Power Mac (the
+7.6.1 and 8.1 disks tested start on the Mac II only). It has the Mac II's disks,
+shared folder, sound and network (Mac OS's TCP/IP, through slirp, as the
+Mac II's). Not Mac OS X: SheepShaver doesn't emulate the PowerPC's memory
+management that it needs, nor Mac OS 9.1 and later.
 
 ### Left out, for now
 
@@ -41,11 +63,12 @@ These were decided against for this version; they may come later:
 
 Not supported:
 
-- **The startup chime** (the Mac II): a real Mac plays it from its ROM on
-  its own sound chip. Basilisk II doesn't emulate that chip (the Mac's
-  sound reaches it through the Sound Manager, once Mac OS is running) and
-  skips the ROM's chime, so the Mac II starts silently, as Basilisk II
-  does everywhere. Apple's recording of the chime can't be shipped
+- **The startup chime** (the Mac II and the Power Mac): a real Mac plays
+  it from its ROM on its own sound chip. Basilisk II and SheepShaver don't
+  emulate that chip (the Mac's sound reaches them through the Sound
+  Manager, once Mac OS is running) and skip the ROM's chime, so these Macs
+  start silently, as Basilisk II and SheepShaver do everywhere. (The Mac
+  Plus's beep is its ROM's, played on umac's emulated sound hardware.) Apple's recording of the chime can't be shipped
   instead.
 
 ## The SD card
@@ -62,7 +85,7 @@ Not supported:
 | `macplus.pram`   | The Mac Plus's: its clock chip's parameter RAM, and how far its clock was set from the Pi's |
 | `roms/`          | Your Mac ROMs (see ROMs)                                    |
 | `disks/`         | For your disk images (any folder works)                     |
-| `shared/`        | A folder the Mac II sees as a disk, *SD Card*               |
+| `shared/`        | A folder the Mac II and Power Mac see as a disk, *SD Card*  |
 | `firmware/`      | Wi-Fi firmware                                              |
 
 The Macs read and write their disk images in place, and BMMacintosh pushes
@@ -87,8 +110,9 @@ flashing "?" disk. System software isn't free either: use your own disk
 images. MAME's hard disks (CHD files) need making raw first: see
 [ROMS.txt](ROMS.txt).
 
-**Mac II.** *Hard Disks* in the menu adds hard disk images (raw, or with an
-Apple partition map, up to 4 GB): the Mac starts from the first. They
+**Mac II and Power Mac.** *Hard Disks* in the menu adds hard disk images
+(raw, or with an Apple partition map, up to 4 GB; a SheepShaver `.dmg`
+that is a raw disk works): the Mac starts from the first. They
 change when the Mac restarts (*Restart the Mac*). *Insert a Floppy Disk*
 puts a floppy image (400K, 800K, 1.4 MB, raw or DiskCopy 4.2) in one of
 the two floppy drives while the Mac runs, *Insert a CD-ROM* an `.iso` or
@@ -125,6 +149,7 @@ and the Mac stops while it's open. The arrow keys (or the D-pad) move,
 | Shared Folder | Mac II: the card's `shared` folder as a disk |
 | Disk, No Disk | Mac Plus: its disk |
 | ROM           | The ROMs found that this Mac takes |
+| Model         | Mac II: the Quadra 900 (a 68040, System 7.5 and later) or the Mac IIci (a 68030, for System 7.0 to 7.1.3); the Mac restarts |
 | Memory        | The Mac's memory (it restarts) |
 | Restart the Mac | Switching the Mac off and on |
 | Machine       | The Mac Plus or the Mac II (the Pi restarts) |
@@ -236,9 +261,9 @@ The web UI is open to anyone on your network. To protect it with a PIN, set
 `webui_pin=1234` in `cmdline.txt`; the browser then asks for a user name
 (anything) and the PIN. To network without the web UI, set `webui=0`.
 
-### The Mac II on the network
+### The Mac II and Power Mac on the network
 
-With the Pi on the network, the Mac II is too: its Ethernet card is
+With the Pi on the network, the Mac II and the Power Mac are too: its Ethernet card is
 connected to a small network of its own inside BMMacintosh (slirp, as in
 Basilisk II and QEMU), which reaches the internet through the Pi's
 connection, Ethernet or Wi-Fi. In Mac OS, open the *TCP/IP* control panel,
@@ -257,7 +282,7 @@ they have.
 
 The Mac starts with the network up (the log says "the Mac's network is
 up" once the Pi has its address). To leave it off, add `nonet true` to
-`macii.prefs`. The Mac Plus has no network.
+`macii.prefs` (or `macppc.prefs`). The Mac Plus has no network.
 
 The network also sets the Pi's clock, so files saved on the card get the
 right date and time. Set `timezone` to your offset from UTC in minutes, for
@@ -288,7 +313,8 @@ which the menu changes.
 | `sound`             | `0`, `1`                     | `1`      | Sound on or off |
 | `volume`            | 0 to 100                     | `100`    | Sound volume |
 | `audio_out`         | `auto`, `hdmi`, `headphones` | `auto`   | Where the sound goes (`auto`: HDMI, or the headphone jack if the display takes no sound) |
-| `audio_buffer_ms`   | 20 to 500                    | `60`     | Sound buffer; raise it if the sound breaks up |
+| `audio_buffer_ms`   | 20 to 500                    | `60`     | Sound buffer; raise it if the sound breaks up (129 at least for the Mac II and Power Mac, 97 for the Mac Plus on a Pi 5) |
+| `sound_test`        | `0`, `1`                     | `0`      | The first 8 seconds of the Mac's sound are a 440 Hz tone: a test of the sound output |
 | `plus_rom`, `plus_disk`, `plus_ram` | a path; KB (128 to 4096) | | The Mac Plus's ROM, disk and memory (the menu sets them) |
 | `ii_max_instructions` | number                     | `2000000` | The most instructions the Mac II runs in a frame |
 | `enable_logging`    | `off`, `uart`, `file`        | `off`    | Where the log goes (see Logging) |

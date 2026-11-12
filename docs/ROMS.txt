@@ -8,11 +8,38 @@ first four bytes are its checksum), whatever the files are called:
 
   Mac II and Quadra (Basilisk II, a Pi 4 or 5)
       A 32-bit clean ROM of a 68030 or 68040 Mac: best a Quadra 650's or
-      800's (checksum F1ACAD13, 1 MB), for System 7.1 to Mac OS 8.1 (8.1
-      tested). Others: the IIci's (368CADFE, 512K), the Quadra 700's and
-      900's (420DBFF3), 950's (3DC27823), 605's (FF7439EE), the Centris
-      650's (F1A6F343), the LC III's (ECBBC41C). Not the Mac II's, IIx's
+      800's (checksum F1ACAD13, 1 MB), for System 7.0 to Mac OS 8.1 (7.0,
+      7.0.1, 7.1.3, 7.5.5, 7.6.1 and 8.1 tested, with it and the IIci's).
+      System 7.0 to 7.1.3 need Model in the menu set to the Mac IIci: they
+      don't know the Quadra 900 BMMacintosh is otherwise. Others: the
+      IIci's (368CADFE, 512K), the Quadra 700's and 900's (420DBFF3),
+      950's (3DC27823), 605's (FF7439EE), the Centris 650's (F1A6F343),
+      the LC III's (ECBBC41C). Not the Mac II's, IIx's
       or SE/30's (24-bit ROMs), nor the AV Quadras'.
+
+  Power Mac (SheepShaver, a Pi 5)
+      A "Mac OS ROM" file, as the New World Power Macs (the iMac and later)
+      load from the System Folder, for Mac OS 8.6 to 9.0.4. It is in the
+      System Folder of a Mac OS 8.5 to 9.0.4 install, or in Apple's ROM
+      updates. Tested, starting Mac OS 8.6, 9.0 and 9.0.4: Mac OS ROM 1.1,
+      1.1.2, 1.2, 1.4 and 1.6 (the default). Mac OS 8.5.1 starts with 1.1.2
+      only. SheepShaver can't start 1.2.1, 1.8.1, nor 2.5.1 and later (Mac
+      OS 9.0.4 to 9.2.2's newer Macs): BMMacintosh leaves them out.
+      Or an Old World PCI Power Mac's 4 MB ROM, for Mac OS 7.5.2 to 9.0.4.
+      Tested, starting Mac OS 7.5.5, 8.6, 9.0 and 9.0.4:
+        Power Mac 7200 to 9500    96CD923D, 9630C68B
+        Power Mac 7300 to 9600    960E4BE9, 960FC647
+        Power Mac 6400            6F5724C0
+        Power Mac 6500            6E92FE08
+        Power Mac G3 desktop      79D68D63 (also Mac OS 8.5.1)
+      The G3's "v3" ROM (78F57389) starts nothing and is left out. Not
+      the NuBus Power Macs' (6100, 7100, 8100), the 5200 to 6300's, nor
+      the PowerBooks'.
+      BMMacintosh finds these by their contents too (a Mac OS ROM file
+      starts with "<CHRP-BOOT>"); they are files, not in zips.
+      A System Folder installed on a 68k Mac (or in Basilisk II) may not
+      start on the Power Mac: the Mac OS 7.6.1 and 8.1 disks tested start
+      on the Mac II only, as they do in SheepShaver on a PC.
 
   Mac Plus (umac, every Pi)
       The Mac Plus's last ROM (checksum 4D1F8172, 128K), for the System
@@ -28,7 +55,8 @@ They can be:
     four): BMMacintosh puts them back together.
 
 In the menu (F12), ROM chooses between the ones found; without a choice,
-the Quadra 650's is the Mac II's, if it's there.
+the Quadra 650's is the Mac II's, if it's there, and a Mac OS ROM file the
+Power Mac's.
 
 tools/mac_media.py (in BMMacintosh's source) writes plain ROM files from
 MAME's sets, for other emulators:

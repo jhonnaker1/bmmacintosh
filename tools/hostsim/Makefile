@@ -12,6 +12,7 @@ SRCROOT := ../../
 ZLIB := $(ROOT)/third_party/zlib
 include $(ROOT)/src/port/ii/basilisk.mk
 include $(ROOT)/src/port/plus/umac.mk
+include $(ROOT)/src/port/ppc/sheepshaver.mk
 
 ZLIB_SRCS = adler32.c crc32.c inffast.c inflate.c inftrees.c zutil.c
 ZLIB_CFLAGS = -DHAVE_UNISTD_H -DHAVE_STDARG_H -w
@@ -42,6 +43,19 @@ B2_OBJS := $(addprefix $(OUT)/b2/,$(B2_CORE_SRCS:.cpp=.o)) \
            $(addprefix $(OUT)/slirp/,$(B2_SLIRP_PORT_SRCS:.c=.o))
 B2_FLAGS = $(CFLAGS) $(B2_CXXFLAGS) $(B2_INCLUDES) -I $(GEN)
 
+# ---- SheepShaver --------------------------------------------------------------
+# Its objects can go elsewhere (PPC_OUT), as they are big.
+
+PPC_OUT ?= $(OUT)/ppc
+SS_OBJS := $(addprefix $(PPC_OUT)/ss/,$(SS_CORE_SRCS:.cpp=.o)) \
+           $(addprefix $(PPC_OUT)/ss/,$(SS_CPU_SRCS:.cpp=.o)) \
+           $(addprefix $(PPC_OUT)/ss/,$(SS_CPU_C_SRCS:.c=.o)) \
+           $(addprefix $(PPC_OUT)/port/,$(SS_PORT_SRCS:.cpp=.o)) \
+           $(addprefix $(PPC_OUT)/ii/,$(SS_II_SRCS:.cpp=.o)) \
+           $(addprefix $(OUT)/slirp/,$(B2_SLIRP_SRCS:.c=.o)) \
+           $(addprefix $(OUT)/slirp/,$(B2_SLIRP_PORT_SRCS:.c=.o))
+SS_FLAGS = $(CFLAGS) $(SS_CXXFLAGS) $(SS_INCLUDES) -I $(PPC_OUT)/gen
+
 # ---- umac -----------------------------------------------------------------------
 
 UMAC_OBJS := $(addprefix $(OUT)/umac/,$(UMAC_CORE_SRCS:.c=.o)) \
@@ -50,13 +64,43 @@ UMAC_OBJS := $(addprefix $(OUT)/umac/,$(UMAC_CORE_SRCS:.c=.o)) \
              $(addprefix $(OUT)/port/plus/,$(UMAC_PORT_SRCS:.c=.o))
 UMAC_FLAGS = $(CFLAGS) $(UMAC_CFLAGS) $(UMAC_INCLUDES) -I $(GEN)
 
-all: $(OUT)/macii_sim $(OUT)/macplus_sim
+all: $(OUT)/macii_sim $(OUT)/macplus_sim $(OUT)/macppc_sim
+
+ppc: $(OUT)/macppc_sim
 
 $(OUT)/macii_sim: $(COMMON_OBJS) $(B2_OBJS)
 	$(CXX) -o $@ $^ -lm
 
 $(OUT)/macplus_sim: $(COMMON_OBJS) $(UMAC_OBJS)
 	$(CC) -o $@ $^ -lm
+
+$(OUT)/macppc_sim: $(COMMON_OBJS) $(SS_OBJS)
+	$(CXX) -o $@ $^ -lm
+
+# The interpreter's instruction handlers, instantiated from ppc-decode.cpp's
+# table by genexec.pl (as SheepShaver's build does).
+$(PPC_OUT)/gen/ppc-execute-impl.cpp: $(SS)/kpx_cpu/src/cpu/ppc/ppc-decode.cpp $(SS)/kpx_cpu/src/cpu/ppc/genexec.pl
+	@mkdir -p $(dir $@)
+	$(CXX) -E $(SS_CXXFLAGS) $(SS_INCLUDES) -DGENEXEC $< | perl $(SS)/kpx_cpu/src/cpu/ppc/genexec.pl > $@
+
+$(PPC_OUT)/ss/kpx_cpu/src/cpu/ppc/ppc-execute.o: $(PPC_OUT)/gen/ppc-execute-impl.cpp $(ROOT)/src/port/ppc/limit_log.h
+$(PPC_OUT)/ss/kpx_cpu/src/cpu/ppc/ppc-execute.o: SS_FLAGS += -include $(ROOT)/src/port/ppc/limit_log.h
+
+$(PPC_OUT)/ss/%.o: $(SS)/%.cpp
+	@mkdir -p $(dir $@)
+	@$(CXX) $(SS_FLAGS) -c -o $@ $<
+
+$(PPC_OUT)/ss/%.o: $(SS)/%.c
+	@mkdir -p $(dir $@)
+	@$(CC) $(CFLAGS) -w $(SS_DEFINES) $(SS_INCLUDES) -c -o $@ $<
+
+$(PPC_OUT)/port/%.o: $(ROOT)/src/port/ppc/%.cpp $(ROOT)/src/port/ppc/ppc.h $(ROOT)/src/port/bmmac.h
+	@mkdir -p $(dir $@)
+	$(CXX) $(SS_FLAGS) -c -o $@ $<
+
+$(PPC_OUT)/ii/%.o: $(ROOT)/src/port/ii/%.cpp $(ROOT)/src/port/ii/ii.h $(ROOT)/src/port/bmmac.h
+	@mkdir -p $(dir $@)
+	$(CXX) $(SS_FLAGS) -c -o $@ $<
 
 # Basilisk II's CPU tables and opcode handlers, as its build makes them
 # (Unix/Makefile.in): build68k and gencpu are built for this computer.
@@ -158,4 +202,4 @@ $(OUT)/live.o: live.c live.h
 clean:
 	rm -rf $(OUT)
 
-.PHONY: all clean
+.PHONY: all ppc clean

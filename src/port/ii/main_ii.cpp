@@ -333,7 +333,10 @@ const char *emu_machine_text(void)
 	static char text[96];
 	const char *model = rom_in_use != NULL ? rom_in_use->name : "no ROM";
 	char cpu[16];
-	snprintf(cpu, sizeof cpu, "680%d0", CPUType > 0 ? CPUType : 4);
+	/* The setting InitAll() takes CPUType from (this is called before it,
+	   and CPUType is still the last start's). */
+	int c = PrefsFindInt32("cpu");
+	snprintf(cpu, sizeof cpu, "680%d0", c >= 2 && c <= 4 ? c : 4);
 	snprintf(text, sizeof text, "%s, %s, %u MB", model, cpu, (unsigned) (RAMSize >> 20));
 	return text;
 }

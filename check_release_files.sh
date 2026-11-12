@@ -19,8 +19,10 @@ KERNELS=(
     "macplus8-32.img"    # Pi 3, Pi Zero 2 W
     "macplus8-rpi4.img"  # Pi 4 B, Pi 400 (64-bit)
     "macii8-rpi4.img"
+    "macppc8-rpi4.img"   # (for QEMU's raspi4b only: the Power Mac is the Pi 5's)
     "macplus_2712.img"   # Pi 5, Pi 500, Pi 500+ (64-bit)
     "macii_2712.img"
+    "macppc_2712.img"
 )
 
 # What the Pi 4 boots with besides its kernels: needed when

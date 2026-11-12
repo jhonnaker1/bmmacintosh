@@ -25,6 +25,12 @@
  * the Raspberry Pi. See LICENSE for licensing details.
  */
 
+/* The Power Macintosh (SheepShaver) builds some of these files too, with
+   its own definitions. */
+#ifdef BMMAC_PPC_BUILD
+#include "../ppc/sysdeps_ppc.h"
+#endif
+
 #ifndef SYSDEPS_H
 #define SYSDEPS_H
 

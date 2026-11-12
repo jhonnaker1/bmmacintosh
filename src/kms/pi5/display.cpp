@@ -15,6 +15,7 @@
 #include <circle/sched/scheduler.h>
 #include <circle/synchronize.h>
 #include <circle/timer.h>
+#include <circle/multicore.h>
 #include <string.h>
 
 namespace kms {
@@ -204,7 +205,11 @@ bool Display::WaitForFlip(unsigned from) {
     if (CTimer::GetClockTicks64() - start > limit) {
       return false;
     }
-    CScheduler::Get()->Yield();
+    // Only core 1 runs Circle's tasks; core 3, which shows the frames on
+    // the Pi 4 and 5 (src/av/video.cpp), just waits.
+    if (CMultiCoreSupport::ThisCore() == 1) {
+      CScheduler::Get()->Yield();
+    }
   }
   return true;
 }

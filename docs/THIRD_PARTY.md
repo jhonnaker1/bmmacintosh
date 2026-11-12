@@ -14,6 +14,14 @@ The Mac II's network is Basilisk II's copy of slirp (`BasiliskII/src/slirp`), by
 
 Its notice is in [`sdcard/licenses/basilisk2.txt`](../sdcard/licenses/basilisk2.txt) and the GNU General Public License version 2 in [`sdcard/licenses/GPL-2.0.txt`](../sdcard/licenses/GPL-2.0.txt).
 
+## SheepShaver
+
+BMMacintosh's Power Mac kernels incorporate [SheepShaver](https://sheepshaver.cebix.net/), the PowerPC Macintosh emulator by Christian Bauer, Marc Hellwig and others, under the GNU General Public License version 2 or (at your option) any later version: kanjitalk755's macemu at the same commit as Basilisk II (the `third_party/macemu` submodule), its `SheepShaver/src`, some of whose files are Basilisk II's.
+
+Its PowerPC emulator is Kheperix (`kpx_cpu`), by Gwenole Beauchesne, under the same licence, with a PowerPC disassembler from the GNU Binutils (`kpx_cpu/ppc-dis.c`, Free Software Foundation, GPL version 2 or later). BMMacintosh's front end (`src/port/ppc/`) follows SheepShaver's Unix front end (`src/Unix/`); `src/port/ppc/kpx/cpu/vm.hpp` and `spcflags.hpp` are Kheperix's, changed for BMMacintosh (the Mac's memory, and the frame loop's count). The Power Mac also uses the Mac II's front end files (disks, shared folder, sound, menu, network, with slirp as above).
+
+Its notice is in [`sdcard/licenses/sheepshaver.txt`](../sdcard/licenses/sheepshaver.txt).
+
 ## umac and Musashi
 
 BMMacintosh's Mac Plus kernels incorporate [umac](https://github.com/evansm7/umac), the Mac 128K, 512K and Plus emulator by Matt Evans (the core of [pico-mac](https://github.com/evansm7/pico-mac)), at commit `b62d3c6e` (the `third_party/umac` submodule), under the MIT licence, with its 68000, [Musashi](https://github.com/kstenerud/Musashi) by Karl Stenerud (umac's copy, its `external/Musashi` submodule at `b3144f12`), under the MIT licence, and Musashi's floating point emulation from the SoftFloat package, Release 2b, by John R. Hauser, under its own notice.

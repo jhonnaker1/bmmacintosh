@@ -1,14 +1,16 @@
 /*
- * machine.c - switching between the Mac Plus and the Mac II / Quadra.
+ * machine.c - switching between the Mac Plus, the Mac II / Quadra and
+ * the Power Mac.
  *
- * Each is a kernel of its own (two 68k CPU cores in one kernel would
- * clash): macplus*.img (umac, every Pi) and macii*.img (Basilisk II, the
- * Pi 4 and 5). The Pi's firmware starts the one named by the kernel= line
+ * Each is a kernel of its own (two emulators in one kernel would clash):
+ * macplus*.img (umac, every Pi), macii*.img (Basilisk II, the Pi 4 and 5)
+ * and macppc*.img (SheepShaver, the Pi 5; its Pi 4 kernel is for testing
+ * in QEMU). The Pi's firmware starts the one named by the kernel= line
  * of config.txt's section for the board, so switching, as BMC64 switched
  * between its machines, rewrites those lines and reboots. The Pi Zero to 3
  * have only the Mac Plus, so only the [pi4] and [pi5] sections change.
  *
- * Both kernels share the SD card: the roms and disks folders, the web UI,
+ * The kernels share the SD card: the roms and disks folders, the web UI,
  * and bmmac.cfg.
  *
  * This file is part of BMMacintosh, a bare metal 68k Macintosh emulator for
@@ -32,16 +34,22 @@ static const char *const plus_kernels[6] = {
 static const char *const ii_kernels[6] = {
 	NULL, NULL, NULL, NULL, "macii8-rpi4.img", "macii_2712.img"
 };
+static const char *const ppc_kernels[6] = {
+	NULL, NULL, NULL, NULL, "macppc8-rpi4.img", "macppc_2712.img"
+};
 
 int bmmac_machine_available(int machine)
 {
-	return machine == BMMAC_PLUS || (machine == BMMAC_II && BMMAC_RASPPI >= 4);
+	return machine == BMMAC_PLUS || (machine == BMMAC_II && BMMAC_RASPPI >= 4)
+	       || (machine == BMMAC_PPC && BMMAC_RASPPI >= 5);
 }
 
 static const char *kernel_for(int machine, int raspi)
 {
 	if (raspi < 1 || raspi > 5)
 		return NULL;
+	if (machine == BMMAC_PPC)
+		return ppc_kernels[raspi];
 	return machine == BMMAC_II ? ii_kernels[raspi] : plus_kernels[raspi];
 }
 
@@ -110,6 +118,7 @@ int bmmac_switch_machine(int machine)
 		return FALSE;
 	}
 	printf("BMMacintosh: config.txt now starts %s\n",
-	       machine == BMMAC_II ? "the Mac II (Basilisk II)" : "the Mac Plus (umac)");
+	       machine == BMMAC_PPC ? "the Power Mac (SheepShaver)"
+	       : machine == BMMAC_II ? "the Mac II (Basilisk II)" : "the Mac Plus (umac)");
 	return TRUE;
 }

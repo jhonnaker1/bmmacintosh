@@ -79,7 +79,13 @@ public:
   // PITCH is in bytes.
   int Allocate(int width, int height, uint16_t **pixels, int *pitch);
   void SetView(int x, int y, int w, int h, double aspect, double scale);
-  void Present(bool wait_vsync);
+  // FIRST to LAST: the source's lines changed since the last frame (only
+  // they are drawn again where that is possible). With the direct display
+  // driver core 3 shows the frame (see PresenterLoop()).
+  void Present(bool wait_vsync, int first = 0, int last = 1 << 30);
+  // Is the next frame due: the one before last shown (1), or not yet (0);
+  // -1 when frames are shown in Present() itself.
+  int FrameDue(void);
   void DisplaySize(int *width, int *height) const;
   // With the Kms driver: runs the display at FPS frames a second if it
   // can. AUDIO_FS: the HDMI sound's sample rate. LINES (the Pi 5 only):
@@ -96,7 +102,8 @@ public:
   // framebuffer, CRT on the HVS). The ARM takes over again if it fails.
   void UseGpu(v3d::Crt *crt);
 
-  // Cores 2 and 3 (CEmulatorCore::Run): help draw frames, forever.
+  // Cores 2 and 3 (CEmulatorCore::Run): help draw frames, forever. With
+  // the direct display driver core 3 shows them instead (PresenterLoop()).
   static void WorkerLoop(unsigned core);
 
 private:
@@ -109,6 +116,10 @@ private:
   void CopyLine(uint8_t *dst, uint32_t *line) const;
   void SetViewKms(int x, int y, int w, int h, double aspect, double scale);
   void PresentKms(bool wait_vsync);
+  void PresentFrame(bool wait_vsync);
+  void PresenterLoop(void);
+  bool Presenting(void) const;
+  void WaitPresenter(bool shown);
   void WaitForVerticalSync(void);
   bool DrawnByArm(void) const;
   void ConfigureGpu(void);
@@ -168,6 +179,24 @@ private:
   unsigned m_nKmsSrcW, m_nKmsSrcH;
   double m_fKmsAspect, m_fKmsScale;  // the last SetViewKms()'s
   bool m_bKmsResize;                 // SetViewKms() again at the next frame
+
+  // Core 3 shows the frames on the direct display driver (the presenter):
+  // core 1 copies the lines changed to STAGE, which core 3 draws from, and
+  // counts the frame POSTED; core 3 counts it DRAWN once it no longer
+  // reads STAGE, and SHOWN after the vertical blank. Each of the driver's
+  // two buffers keeps the lines changed since it was last drawn (by the
+  // buffer's address; all of them when it is new).
+  volatile bool m_bPresenter;
+  volatile unsigned m_nPosted, m_nDrawn, m_nShown;
+  bool m_bPostWait;
+  int m_nPostFirst, m_nPostLast;
+  uint16_t *m_pStage;
+  const uint16_t *m_pDraw;           // what is drawn from: STAGE or SOURCE
+  struct Dirty {
+    uint32_t *buffer;
+    int first, last;
+  } m_Dirty[2];
+  void MarkDirty(int first, int last);
 
   static Pi4Video *s_pThis;
 };

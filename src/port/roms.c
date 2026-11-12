@@ -15,6 +15,13 @@
  * ones, of the IIci and later (ROM version 0x067C), best a Quadra 650's or
  * 800's (F1ACAD13).
  *
+ * SheepShaver (the Power Macintosh) runs two kinds of PowerPC ROM, as
+ * files (not in zips): a "Mac OS ROM" file, as the New World Macs (the
+ * iMac and later) load from the System Folder, which starts with
+ * "<CHRP-BOOT>" and is unpacked when the Mac starts (rom_patches.cpp's
+ * DecodeROM()); or an Old World PCI Power Mac's 4 MB ROM, which names its
+ * board family ("Boot TNT", "Boot Gossamer"...) at 0x30D064.
+ *
  * This file is part of BMMacintosh, a bare metal 68k Macintosh emulator for
  * the Raspberry Pi. See LICENSE for licensing details.
  */
@@ -30,8 +37,11 @@
 
 #include "bmmac.h"
 
-#define MAX_ROMS 32
+#define MAX_ROMS 96
 #define MAX_ROM_SIZE (1024 * 1024)
+/* The PowerPC ROMs: a Mac OS ROM file is under 4 MB, an Old World one
+   4 MB. */
+#define PPC_ROM_SIZE (4 * 1024 * 1024)
 
 static struct bmmac_rom roms[MAX_ROMS];
 static int rom_count;
@@ -120,6 +130,7 @@ static void add_rom(const char *path, const uint8_t *buf, uint32_t size)
 	r = &roms[rom_count++];
 	snprintf(r->path, sizeof r->path, "%s", path);
 	r->checksum = be32(buf);
+	r->preferred = 0;
 	r->size = size;
 	r->machine = machine_for(buf);
 	name = bmmac_rom_describe(r->checksum, NULL);
@@ -129,6 +140,151 @@ static void add_rom(const char *path, const uint8_t *buf, uint32_t size)
 		snprintf(r->name, sizeof r->name, "ROM %08X", (unsigned) r->checksum);
 	printf("BMMacintosh: ROM %s: %s, %u KB%s\n", path, r->name, (unsigned) (size / 1024),
 	       r->machine == BMMAC_PLUS ? ", Mac Plus" : r->machine == BMMAC_II ? ", Mac II" : "");
+}
+
+/* The Mac OS ROM files tried with SheepShaver (their CRC-32s): the ones
+   that start Mac OS, newest first (the default is the first found), and
+   the ones that don't. Those packed in "parcels" (2.5.1 and later, for Mac
+   OS 9.0.4 to 9.2.2's Macs) never do: rom_patches.cpp can unpack them but
+   not patch them. */
+static const struct {
+	uint32_t crc;
+	const char *name;
+} nw_good[] = {
+	{0x2f6572b4, "Mac OS ROM 1.6"},
+	{0xfcce2265, "Mac OS ROM 1.4"},
+	{0xceace951, "Mac OS ROM 1.2"},
+	{0x2172203c, "Mac OS ROM 1.1.2"},
+	{0xb5df73dd, "Mac OS ROM 1.1"},
+};
+static const uint32_t nw_bad[] = {
+	0x497f0241,    /* 1.2.1 */
+	0x5148b324,    /* 1.8.1 */
+};
+/* The Old World ROMs (their checksums, at the start) that start no Mac OS
+   in SheepShaver: the G3 desktop's "v3" (a black screen). */
+static const uint32_t ow_bad[] = {
+	0x78f57389,
+};
+/* The Old World ROMs tested (they start Mac OS 7.5.5 to 9.0.4), named by
+   their Macs. */
+static const struct {
+	uint32_t checksum;
+	const char *name;
+} ow_known[] = {
+	{0x96cd923d, "Power Mac 7200 to 9500 v1"},
+	{0x9630c68b, "Power Mac 7200 to 9500 v2"},
+	{0x960e4be9, "Power Mac 7300 to 9600 v1"},
+	{0x960fc647, "Power Mac 8600, 9600 v2"},
+	{0x6f5724c0, "Power Mac 6400"},
+	{0x6e92fe08, "Power Mac 6500"},
+	{0x79d68d63, "Power Mac G3 desktop"},
+};
+
+/* Whether the Mac OS ROM file DATA (SIZE bytes) is packed in parcels: the
+   data its header's "constant lzss-offset" or "constant parcels-offset"
+   points to starts "prcl" (DecodeROM()). */
+static int nw_parcels(const uint8_t *data, uint32_t size)
+{
+	static const char *const keys[] = {" constant lzss-offset", " constant parcels-offset"};
+	unsigned k;
+	uint32_t i, n = size < 0x8000 ? size : 0x8000;    /* the header's text */
+	for (k = 0; k < 2; k++) {
+		size_t len = strlen(keys[k]);
+		for (i = 6; i + len <= n; i++) {
+			if (memcmp(data + i, keys[k], len) == 0) {
+				char hex[7];
+				uint32_t at;
+				memcpy(hex, data + i - 6, 6);
+				hex[6] = '\0';
+				at = (uint32_t) strtoul(hex, NULL, 16);
+				return at + 4 <= size && memcmp(data + at, "prcl", 4) == 0;
+			}
+		}
+	}
+	return FALSE;
+}
+
+/* A PowerPC ROM file (see the top): PATH as shown, FILE on the card, SIZE
+   bytes. HEAD is its first 16 bytes, BOARD the 16 at 0x30D064 (a 4 MB
+   one's), or NULL. */
+static void add_ppc_rom(const char *path, const char *file, uint32_t size,
+                        const uint8_t *head, const uint8_t *board)
+{
+	static const char *const boards[] = {
+		"Boot TNT", "Boot Alchemy", "Boot Zanzibar", "Boot Gazelle", "Boot Gossamer",
+		"NewWorld"
+	};
+	struct bmmac_rom *r;
+	const char *base = strrchr(path, '/');
+	unsigned i;
+	if (rom_count >= MAX_ROMS)
+		return;
+	base = base != NULL ? base + 1 : path;
+	r = &roms[rom_count];
+	r->preferred = 0;
+	if (memcmp(head, "<CHRP-BOOT>", 11) == 0 && size < PPC_ROM_SIZE) {
+		/* A Mac OS ROM file: read whole, to know it. */
+		uint8_t *data = malloc(size);
+		FILE *f = fopen(file, "rb");
+		uint32_t crc;
+		int got = 0;
+		if (data != NULL && f != NULL)
+			got = fread(data, 1, size, f) == size;
+		if (f != NULL)
+			fclose(f);
+		if (!got) {
+			free(data);
+			return;
+		}
+		crc = (uint32_t) crc32(0L, data, size);
+		got = nw_parcels(data, size);
+		free(data);
+		for (i = 0; i < sizeof nw_bad / sizeof nw_bad[0]; i++)
+			if (crc == nw_bad[i])
+				got = TRUE;
+		if (got) {
+			printf("BMMacintosh: ROM %s: a Mac OS ROM SheepShaver cannot start (%08X), left out\n",
+			       path, (unsigned) crc);
+			return;
+		}
+		r->checksum = 0;
+		snprintf(r->name, sizeof r->name, "New World: %.50s", base);
+		for (i = 0; i < sizeof nw_good / sizeof nw_good[0]; i++) {
+			if (crc == nw_good[i].crc) {
+				snprintf(r->name, sizeof r->name, "New World: %s", nw_good[i].name);
+				r->preferred = (int) (sizeof nw_good / sizeof nw_good[0] - i);
+			}
+		}
+	} else if (size == PPC_ROM_SIZE && board != NULL) {
+		unsigned b;
+		for (b = 0; b < sizeof boards / sizeof boards[0]; b++)
+			if (memcmp(board, boards[b], strlen(boards[b])) == 0)
+				break;
+		if (b == sizeof boards / sizeof boards[0])
+			return;
+		r->checksum = be32(head);
+		for (i = 0; i < sizeof ow_bad / sizeof ow_bad[0]; i++) {
+			if (r->checksum == ow_bad[i]) {
+				printf("BMMacintosh: ROM %s: an Old World ROM SheepShaver cannot start (%08X), left out\n",
+				       path, (unsigned) r->checksum);
+				return;
+			}
+		}
+		snprintf(r->name, sizeof r->name, "Old World %s (%08X)",
+		         boards[b] + (boards[b][0] == 'B' ? 5 : 0), (unsigned) r->checksum);
+		for (i = 0; i < sizeof ow_known / sizeof ow_known[0]; i++)
+			if (r->checksum == ow_known[i].checksum)
+				snprintf(r->name, sizeof r->name, "Old World: %s (%08X)", ow_known[i].name,
+				         (unsigned) r->checksum);
+	} else {
+		return;
+	}
+	rom_count++;
+	snprintf(r->path, sizeof r->path, "%s", path);
+	r->size = size;
+	r->machine = BMMAC_PPC;
+	printf("BMMacintosh: ROM %s: %s, %u KB, Power Mac\n", path, r->name, (unsigned) (size / 1024));
 }
 
 /* ---- Zip files ----------------------------------------------------------------- */
@@ -418,6 +574,18 @@ static void scan_dir(const char *dir, int only_rom)
 			fclose(f);
 			if (got == (size_t) st.st_size && checksum_ok(buf, (uint32_t) got))
 				add_rom(shown, buf, (uint32_t) got);
+		} else if (st.st_size > MAX_ROM_SIZE && st.st_size <= PPC_ROM_SIZE) {
+			uint8_t head[16], board[16];
+			int has_board = FALSE;
+			FILE *f = fopen(path, "rb");
+			if (f == NULL)
+				continue;
+			if (fread(head, 1, sizeof head, f) == sizeof head) {
+				has_board = fseek(f, 0x30d064, SEEK_SET) == 0
+				            && fread(board, 1, sizeof board, f) == sizeof board;
+				add_ppc_rom(shown, path, (uint32_t) st.st_size, head, has_board ? board : NULL);
+			}
+			fclose(f);
 		}
 	}
 	free(buf);
@@ -464,6 +632,12 @@ const struct bmmac_rom *bmmac_rom_default(int machine)
 		/* The Quadra 650's and 800's ROM is Basilisk II's best. */
 		if (roms[i].checksum == 0xf1acad13)
 			return &roms[i];
+		/* SheepShaver's: a New World Mac OS ROM file (checksum 0) before
+		   an Old World 4 MB ROM, and a tested one (the newest) first. */
+		if (machine == BMMAC_PPC && best != NULL
+		    && ((best->checksum != 0 && roms[i].checksum == 0)
+		        || (roms[i].checksum == 0 && roms[i].preferred > best->preferred)))
+			best = &roms[i];
 		if (best == NULL)
 			best = &roms[i];
 	}
@@ -493,7 +667,7 @@ uint32_t bmmac_rom_load(const struct bmmac_rom *rom, uint8_t *buf, uint32_t size
 			fclose(f);
 		}
 	}
-	if (got != rom->size || !checksum_ok(buf, got)) {
+	if (got != rom->size || (rom->machine != BMMAC_PPC && !checksum_ok(buf, got))) {
 		printf("BMMacintosh: cannot read the ROM %s\n", rom->path);
 		return 0;
 	}

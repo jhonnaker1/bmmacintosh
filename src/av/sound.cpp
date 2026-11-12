@@ -105,6 +105,8 @@ unsigned Pi4Sound::Open(int channels, unsigned latency_frames) {
   return SAMPLE_RATE;
 }
 
+unsigned Pi4Sound::BlockFrames(void) { return CHUNK_SIZE / 2; }
+
 unsigned Pi4Sound::FreeFrames(void) {
   if (m_pDevice == 0 || !m_pDevice->IsActive()) {
     return 0;

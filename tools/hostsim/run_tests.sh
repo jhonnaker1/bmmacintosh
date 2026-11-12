@@ -1,9 +1,9 @@
 #!/bin/bash
 #
-# Runs both emulator ports on the PC (see host_sim.c) through a set of
+# Runs the emulator ports on the PC (see host_sim.c) through a set of
 # scripted tests and checks the results: the Mac II and Quadra
-# (build/macii_sim, Basilisk II) and the Mac Plus (build/macplus_sim,
-# umac).
+# (build/macii_sim, Basilisk II), the Mac Plus (build/macplus_sim, umac)
+# and the Power Mac (build/macppc_sim, SheepShaver).
 #
 #   BMMAC_ROMS=/path/to/roms tools/hostsim/run_tests.sh
 #
@@ -20,6 +20,11 @@
 #                                 macos81.chd made raw: tools/mac_media.py)
 #   BMMAC_PLUS_DISK=system.dsk    a System 4.3 (or other) floppy or HFS volume
 #
+# The Power Mac's tests need its own ROM and a Mac OS 9 disk:
+#
+#   BMMAC_PPC_ROM="Mac OS ROM"    a New World Mac OS ROM file (1.6 is tested)
+#   BMMAC_PPC_DISK=macos9.dmg     a raw Mac OS 8.5 to 9.0.4 hard disk
+#
 # They are copied first (the Macs write to them).
 #
 # Output, including screenshots (.ppm), goes to tools/hostsim/out/.
@@ -32,6 +37,7 @@ ROOT=$(cd "$HERE/../.." && pwd)
 OUT=$HERE/out
 II=$HERE/build/macii_sim
 PLUS=$HERE/build/macplus_sim
+PPC=$HERE/build/macppc_sim
 
 make -s -C "$HERE" -j"$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 2)" || exit 1
 
@@ -219,6 +225,54 @@ menu_shown norom_ii a
 run "$PLUS" norom_plus 60 "" '120 shot a.ppm\n121 quit\n'
 check_log norom_plus "No Mac Plus ROM" "the Mac Plus asks for a ROM"
 menu_shown norom_plus a
+mkdir -p "$OUT/norom_ppc"
+ln -s "$OUT/empty" "$OUT/norom_ppc/roms"
+run "$PPC" norom_ppc 60 "" '120 shot a.ppm\n121 quit\n'
+check_log norom_ppc "No Power Macintosh ROM" "the Power Mac asks for a ROM"
+menu_shown norom_ppc a
+
+echo
+echo "Power Mac (SheepShaver)"
+
+echo "PowerPC ROMs are told apart (stand-ins: Apple's aren't free)"
+mkdir -p "$OUT/ppcroms/roms"
+python3 - "$OUT/ppcroms/roms" <<'EOF2'
+import sys
+d = sys.argv[1]
+# A New World "Mac OS ROM" file starts with its boot script; this one has
+# no ROM image in it.
+open(d + '/Mac OS ROM', 'wb').write(b'<CHRP-BOOT>\n'.ljust(2 * 1024 * 1024, b' '))
+# An Old World ROM names its board family at 0x30D064.
+rom = bytearray(4 * 1024 * 1024)
+rom[0x30d064:0x30d06c] = b'Boot TNT'
+open(d + '/oldworld.rom', 'wb').write(bytes(rom))
+EOF2
+run "$PPC" ppcroms 60 "" '120 shot a.ppm\n121 quit\n'
+check_log ppcroms "ROM roms/Mac OS ROM: New World: Mac OS ROM, [0-9]+ KB, Power Mac" "a Mac OS ROM file"
+check_log ppcroms "ROM roms/oldworld\.rom: Old World TNT \(00000000\), 4096 KB, Power Mac" "an Old World ROM"
+check_log ppcroms "SheepShaver cannot use the ROM roms/Mac OS ROM" "the New World one is tried first, and a broken one refused"
+
+if [ -n "${BMMAC_PPC_ROM:-}" ] && [ -f "$BMMAC_PPC_ROM" ] && [ -n "${BMMAC_PPC_DISK:-}" ] \
+   && [ -f "$BMMAC_PPC_DISK" ]; then
+    echo "Mac OS 9 to the Finder, with the network and the mouse"
+    # Return closes Disk First Aid's box, there if the disk wasn't shut
+    # down (each test's Mac is stopped, not shut down).
+    mkdir -p "$OUT/ppcboot/roms" "$OUT/ppcboot/disks"
+    ln -sf "$BMMAC_PPC_ROM" "$OUT/ppcboot/roms/Mac OS ROM"
+    copy_disk "$BMMAC_PPC_DISK" "$OUT/ppcboot/disks/macos9.dmg"
+    printf 'disk disks/macos9.dmg\nramsize 268435456\n' > "$OUT/ppcboot/macppc.prefs"
+    BMMAC_IP=192.168.1.50 run "$PPC" ppcboot 60 "" \
+        "1200 netprobe dhcp\n1260 netprobe dns\n$(key $ENTER 1400)2700 shot a.ppm\n2710 mouse 40 30 0\n2711 mouse 40 30 0\n2740 shot b.ppm\n2741 quit\n"
+    rm -f "$OUT/ppcboot/disks/macos9.dmg"
+    check_log ppcboot "PowerPC, 256 MB, ROM roms/Mac OS ROM" "the Mac OS ROM, 256 MB"
+    check_log ppcboot "PowerPC CPU emulator" "SheepShaver's PowerPC starts"
+    check_log ppcboot "netprobe: DHCP offer of 10\.0\.2\.1[0-9]" "slirp's DHCP answers"
+    check_log ppcboot "netprobe: DNS answer" "slirp's DNS answers"
+    finder ppcboot a
+    differ ppcboot a b
+else
+    skip "Power Mac boot (no BMMAC_PPC_ROM and BMMAC_PPC_DISK)"
+fi
 
 if [ "$HAVE_ROMS" -eq 0 ]; then
     for t in "Mac II boot" "Mac Plus boot" "menus" "machine switching" "web UI requests" \
@@ -290,6 +344,15 @@ check_log iitimer "timer paced" "the Mac's 60.15 Hz on a 50 Hz display is timer 
 question iitimer a
 no_underruns iitimer
 
+echo "Sound in the Pi 5's 32 ms blocks"
+# The Pi 5's HDMI takes 1536 frames at a time and pads a short block with
+# silence: the sound must stay more than a block ahead (frontend.c).
+BMMAC_SIM_RATE=48000 BMMAC_SIM_CHUNK=1536 run "$II" iiblocks 60 "" '900 audio\n901 quit\n'
+check_log iiblocks "sound open: 2 channel\(s\), (6[0-9]{3}|[7-9][0-9]{3}) frames" "the buffer is three of the Mac's 2048-frame blocks or more"
+check_log iiblocks " 0 of [1-9][0-9]* blocks of 1536 frames short" "no block short of sound"
+BMMAC_SIM_RATE=48000 BMMAC_SIM_CHUNK=1536 run "$PLUS" plusblocks 60 "" '900 audio\n901 quit\n'
+check_log plusblocks " 0 of [1-9][0-9]* blocks of 1536 frames short" "the Mac Plus: no block short of sound"
+
 echo "Mouse"
 run "$II" iimouse 60 "" '600 shot before.ppm\n610 mouse 40 30 0\n611 mouse 40 30 0\n612 mouse 40 30 0\n640 shot after.ppm\n641 quit\n'
 differ iimouse before after
@@ -302,16 +365,23 @@ run "$II" iipadmenu 60 "" '600 pad 0 0\n610 pad 0 0x0100\n614 pad 0 0\n630 shot 
 menu_shown iipadmenu menu
 
 echo "Settings are saved"
-# Menu, Video (eight down), Show Disk Activity (five down): off.
-run "$II" iisettings 60 "" "$(key $F12 600)$(downs 8 610)$(key $ENTER 650)$(downs 5 660)$(key $ENTER 690)$(key $F12 700)720 quit\n"
+# Menu, Video (nine down), Show Disk Activity (five down): off.
+run "$II" iisettings 60 "" "$(key $F12 600)$(downs 9 610)$(key $ENTER 650)$(downs 5 660)$(key $ENTER 690)$(key $F12 700)720 quit\n"
 check_cfg iisettings bmmac.cfg "^disk_activity=0" "Video > Show Disk Activity saved to bmmac.cfg"
 
 echo "Memory: 64 MB, and the Mac restarts"
-# Menu, Memory (five down), one down from 32 MB, then out.
-run "$II" iimemory 60 "" "$(key $F12 600)$(downs 5 610)$(key $ENTER 640)$(downs 1 650)$(key $ENTER 660)$(key $ESC 670)1300 shot a.ppm\n1301 quit\n"
+# Menu, Memory (six down), one down from 32 MB, then out.
+run "$II" iimemory 60 "" "$(key $F12 600)$(downs 6 610)$(key $ENTER 640)$(downs 1 650)$(key $ENTER 660)$(key $ESC 670)1300 shot a.ppm\n1301 quit\n"
 check_cfg iimemory macii.prefs "^ramsize 67108864" "64 MB saved in macii.prefs"
 check_log iimemory "68040, 64 MB" "the Mac restarted with 64 MB"
 question iimemory a
+
+echo "Model: the Mac IIci, and the Mac restarts"
+# Menu, Model (five down), one down from the Quadra 900, then out.
+run "$II" iimodel 60 "" "$(key $F12 600)$(downs 5 610)$(key $ENTER 640)$(downs 1 650)$(key $ENTER 660)$(key $ESC 670)1300 shot a.ppm\n1301 quit\n"
+check_cfg iimodel macii.prefs "^modelid 5" "the IIci's model saved in macii.prefs"
+check_cfg iimodel macii.prefs "^cpu 3" "and its 68030"
+check_log iimodel "68030, " "the Mac restarted with a 68030"
 
 echo "A disk from the web UI"
 python3 -c "open('$OUT/blank.dsk','wb').write(bytes(819200))"
@@ -340,8 +410,8 @@ check_log iicoldstart "Web UI: restart" "restarts the Mac"
 question iicoldstart a
 
 echo "Switching to the Mac Plus"
-# Menu, Machine (seven down), Mac Plus, Yes (up from No).
-run "$II" iiswitch 60 "" "$(key $F12 600)$(downs 7 610)$(key $ENTER 640)$(key $ENTER 650)$(key $UP 660)$(key $ENTER 670)700 quit\n"
+# Menu, Machine (eight down), Mac Plus, Yes (up from No).
+run "$II" iiswitch 60 "" "$(key $F12 600)$(downs 8 610)$(key $ENTER 640)$(key $ENTER 650)$(key $UP 660)$(key $ENTER 670)700 quit\n"
 check_cfg iiswitch config.txt "^kernel=macplus_2712\.img" "config.txt starts the Mac Plus on the Pi 5"
 check_cfg iiswitch config.txt "^kernel=macplus8-rpi4\.img" "and on the Pi 4"
 check_cfg iiswitch config.txt "^kernel=macplus8-32\.img" "the Pi 3 is left alone"

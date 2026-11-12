@@ -507,6 +507,7 @@ int emu_screen_copy(uint16_t *fb, int pitch_px, int force)
 		memcpy(old, src, SCREEN_W / 8);
 		for (x = 0; x < SCREEN_W; x++)
 			dst[x] = (src[x >> 3] & (0x80 >> (x & 7))) ? 0x0000 : 0xffff;
+		bmmac_screen_lines(y, y);
 		copied = TRUE;
 	}
 	return copied;
@@ -522,7 +523,8 @@ int emu_screen_copy(uint16_t *fb, int pitch_px, int force)
 static void play_sound(void)
 {
 	static int16_t out[1200 * 2];
-	static double dc;
+	static double dc, filtered;
+	static double last = 128.0;    /* the last frame's last sample */
 	unsigned rate = bmmac_sound_rate(), n, i;
 	const uint8_t *buf;
 	int volume;
@@ -537,9 +539,18 @@ static void play_sound(void)
 	if (n > 1200)
 		n = 1200;
 	for (i = 0; i < n; i++) {
-		unsigned k = i * SOUND_SAMPLES / n;
-		double v = (double) buf[k * 2] - 128.0;
+		/* Between the samples, linearly, from the last frame's last one
+		   (a sample later); then the Mac's own filter, a low pass at
+		   about 7 kHz (each sample repeated sounded harsh, with
+		   overtones the Mac's filter takes out). */
+		double pos = (double) i * SOUND_SAMPLES / n;
+		unsigned k = (unsigned) pos;
+		double a = k == 0 ? last : (double) buf[(k - 1) * 2];
+		double b = (double) buf[k * 2];
+		double v = a + (b - a) * (pos - k) - 128.0;
 		int s;
+		filtered += (v - filtered) * 0.6;
+		v = filtered;
 		/* What doesn't change is silence. */
 		dc += (v - dc) * 0.002;
 		s = (int) ((v - dc) * 160.0 * volume / 7);
@@ -549,6 +560,7 @@ static void play_sound(void)
 			s = -32768;
 		out[i * 2] = out[i * 2 + 1] = (int16_t) s;
 	}
+	last = (double) buf[(SOUND_SAMPLES - 1) * 2];
 	bmmac_sound_play(out, n);
 }
 
@@ -579,6 +591,11 @@ const char *emu_credits(void)
 double emu_frame_rate(void)
 {
 	return FRAME_HZ;
+}
+
+unsigned emu_sound_block(void)
+{
+	return 0;    /* a frame's, 370 samples */
 }
 
 const char *const *emu_run_types(void)

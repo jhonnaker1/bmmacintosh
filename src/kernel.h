@@ -98,9 +98,12 @@ public:
   bool DisplayResolutionChoice(void);
   void VideoSetView(int x, int y, int w, int h, double aspect);
   void VideoPresent(int wait_vsync);
+  void VideoPresentLines(int wait_vsync, int first, int last);
+  int VideoFrameDue(void);
   unsigned SoundOpen(unsigned freq, int channels, unsigned latency_frames);
   void SoundClose(void);
   unsigned SoundFreeFrames(void);
+  unsigned SoundBlockFrames(void);
   void SoundWrite(const int16_t *samples, unsigned frames);
   int KeyEvent(int *usage, int *pressed);
   int KeyDown(int usage);

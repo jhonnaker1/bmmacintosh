@@ -1,8 +1,8 @@
 # BMMacintosh
 
-BMMacintosh is a bare metal 68k Macintosh emulator for the Raspberry Pi: a
-Mac II or Quadra running System 7 to Mac OS 8.1 on a Pi 4 or 5, and a Mac
-Plus on every Pi. It runs the emulators directly on the hardware, with no
+BMMacintosh is a bare metal Macintosh emulator for the Raspberry Pi: a
+Mac II or Quadra running System 7 to Mac OS 8.1 on a Pi 4 or 5, a Power
+Mac running Mac OS 9 on a Pi 5, and a Mac Plus on every Pi. It runs the emulators directly on the hardware, with no
 Linux underneath, the same way [BMC64](https://github.com/randyrossi/bmc64)
 does for the Commodore 64, [BMA800XL](https://github.com/aminch/bma800xl)
 for the Atari 800XL, [BMCoco](https://github.com/jhonnaker1/bmcoco) for the
@@ -17,6 +17,11 @@ Each Mac is a kernel of its own, with its own emulator:
   an FPU, 8 to 256 MB of memory and a screen of up to 1600x1200 in millions
   of colours. It runs the ROM of a IIci or a Quadra (best a Quadra 650's or
   800's) and System 7 to Mac OS 8.1.
+- **Power Mac** (`macppc_2712.img`, Pi 5):
+  [SheepShaver](https://github.com/kanjitalk755/macemu), a PowerPC G4 Mac
+  with 16 MB to 1 GB, for Mac OS 8.5 to 9.0.4 with a "Mac OS ROM" file
+  (or 7.5.2 to 8.6 with an Old World Power Mac's ROM). Its PowerPC is
+  interpreted (SheepShaver has no JIT for ARM): usable, not fast.
 - **Mac Plus** (`macplus*.img`, every Pi):
   [umac](https://github.com/evansm7/umac) by Matt Evans, the core of
   pico-mac, with Karl Stenerud's Musashi 68000: the Mac 128K, 512K and
@@ -68,9 +73,12 @@ sets and CHD hard disks.
 
 ## Supported hardware
 
-The **Raspberry Pi 4 Model B and Pi 400** (64-bit) and the **Raspberry
-Pi 5, Pi 500 and Pi 500+** (64-bit) run both Macs: `macii8-rpi4.img` and
-`macplus8-rpi4.img`, `macii_2712.img` and `macplus_2712.img`. See
+The **Raspberry Pi 4 Model B and Pi 400** (64-bit) run the Mac II and the
+Mac Plus: `macii8-rpi4.img` and `macplus8-rpi4.img`. The **Raspberry Pi 5,
+Pi 500 and Pi 500+** (64-bit) run all three: `macii_2712.img`,
+`macppc_2712.img` and `macplus_2712.img`. (`macppc8-rpi4.img` is the Power
+Mac built for the Pi 4, for start-up tests in QEMU; the Pi 4's menu
+doesn't offer it.) See
 [docs/PI4.md](docs/PI4.md) and [docs/PI5.md](docs/PI5.md).
 
 The Raspberry Pi 3 Model B, B+ and A+ and the Pi Zero 2 W

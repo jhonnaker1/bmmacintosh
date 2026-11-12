@@ -56,6 +56,8 @@ public:
   // sound to keep queued, in frames at 44100 Hz.
   unsigned Open(int channels, unsigned latency_frames);
   unsigned FreeFrames(void);
+  // The frames each DMA transfer takes (CHUNK_SIZE's stereo frames).
+  static unsigned BlockFrames(void);
   void Write(const int16_t *samples, unsigned frames);
 
 private:

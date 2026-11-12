@@ -51,8 +51,11 @@ builds everything from clean and stages the boot partition in
 (`macplus*.img`) for every board, `macplus8-32.img` for the Pi 3 and Pi
 Zero 2 W, `macplus7.img` for the Pi 2, `macplus.img` for the Pi Zero and
 Zero W, and for the Pi 4 B and Pi 400 (with `armstub8-rpi4.bin`) and the Pi
-5, Pi 500 and Pi 500+ the Mac II's too: `macplus8-rpi4.img` and
-`macii8-rpi4.img`, `macplus_2712.img` and `macii_2712.img`.
+5, Pi 500 and Pi 500+ the Mac II's and the Power Mac's too:
+`macplus8-rpi4.img`, `macii8-rpi4.img` and `macppc8-rpi4.img` (the Power
+Mac for QEMU only), `macplus_2712.img`, `macii_2712.img` and
+`macppc_2712.img`. SheepShaver's objects go to `build/ppc`, or to
+`$BMMAC_WORK/ppc-piN` with `BMMAC_WORK` set (another disk, for space).
 `./build_sdcard.sh pi3`, `./build_sdcard.sh pi2`, `./build_sdcard.sh pi0`,
 `./build_sdcard.sh pi4` or `./build_sdcard.sh pi5` builds just one, and
 `./build_sdcard.sh pi4 pi5` several. Copy the contents of that folder to the root of a FAT32
@@ -110,6 +113,16 @@ settings, the memory, switching Macs, web UI requests and the power key.
 With System disks too (`BMMAC_II_DISK`, a raw Mac OS 8.1 hard disk, and
 `BMMAC_PLUS_DISK`, an 800K System floppy) each Mac starts from its disk to
 the Finder, the Mac II with the card's shared folder on its desktop.
+
+The Power Mac's tests (`build/macppc_sim`) tell its ROMs apart and ask for
+one when there is none, without Apple's files. With a Mac OS ROM file and
+a Mac OS 9 disk (`BMMAC_PPC_ROM`, `BMMAC_PPC_DISK`: a raw hard disk, a
+SheepShaver `.dmg` of one works) it starts Mac OS 9 to the Finder, with
+the network (slirp's DHCP and DNS) and the mouse:
+
+```
+BMMAC_PPC_ROM="Mac OS ROM" BMMAC_PPC_DISK=macos9.dmg tools/hostsim/run_tests.sh
+```
 
 ```
 BMMAC_ROMS=~/mame/roms tools/hostsim/run_tests.sh

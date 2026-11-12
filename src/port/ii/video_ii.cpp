@@ -244,6 +244,7 @@ int emu_screen_copy(uint16_t *fb, int pitch_px, int force)
 			continue;
 		memcpy(old, src, mode.bytes_per_row);
 		convert_line(src, fb + y * pitch_px, mode.x, mode.depth);
+		bmmac_screen_lines((int) y, (int) y);
 		copied = TRUE;
 	}
 	return copied;

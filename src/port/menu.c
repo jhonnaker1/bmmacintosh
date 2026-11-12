@@ -88,7 +88,10 @@ int bmmac_browse(const char *title, const char *dir, const char *const exts[],
 /* ---- Machine ------------------------------------------------------------------- */
 
 static const char *const machine_names[BMMAC_MACHINES] = {
-	"Mac Plus (umac)", "Mac II and Quadra (Basilisk II)"
+	"Mac Plus (umac)", "Mac II and Quadra (Basilisk II)", "Power Mac (SheepShaver)"
+};
+static const char *const machine_short[BMMAC_MACHINES] = {
+	"Mac Plus", "Mac II and Quadra", "Power Mac"
 };
 
 static void machine_menu(void)
@@ -101,6 +104,7 @@ static void machine_menu(void)
 			{"", NULL, OSD_ITEM_LABEL, -1},
 			{"Mac Plus", NULL, check(emu_machine() == BMMAC_PLUS), BMMAC_PLUS},
 			{"Mac II and Quadra", NULL, check(emu_machine() == BMMAC_II), BMMAC_II},
+			{"Power Mac", NULL, check(emu_machine() == BMMAC_PPC), BMMAC_PPC},
 			{"", NULL, OSD_ITEM_LABEL, -1},
 			{"Each is a kernel of its own: switching restarts the Pi.", NULL,
 			 OSD_ITEM_LABEL, -1},
@@ -108,7 +112,9 @@ static void machine_menu(void)
 			 OSD_ITEM_LABEL, -1},
 			{"Mac II and Quadra need a Pi 4 or 5, and a IIci's or a", NULL,
 			 OSD_ITEM_LABEL, -1},
-			{"Quadra's ROM (roms/ROMS.txt).", NULL, OSD_ITEM_LABEL, -1},
+			{"Quadra's ROM; the Power Mac a Pi 5 and a Mac OS ROM", NULL,
+			 OSD_ITEM_LABEL, -1},
+			{"file (roms/ROMS.txt).", NULL, OSD_ITEM_LABEL, -1},
 		};
 		chosen = osd_menu("Machine", items, sizeof items / sizeof items[0], &sel);
 		if (chosen < 0)
@@ -117,11 +123,12 @@ static void machine_menu(void)
 		if (m == emu_machine())
 			continue;
 		if (!bmmac_machine_available(m)) {
-			osd_message("The Mac II and Quadra need a Raspberry Pi 4 or 5.", TRUE);
+			osd_message(m == BMMAC_PPC ? "The Power Mac needs a Raspberry Pi 5."
+			            : "The Mac II and Quadra need a Raspberry Pi 4 or 5.", TRUE);
 			continue;
 		}
-		if (!osd_confirm("Switch Machine", m == BMMAC_II
-		                 ? "Restart the Pi as a Mac II / Quadra?"
+		if (!osd_confirm("Switch Machine", m == BMMAC_PPC ? "Restart the Pi as a Power Mac?"
+		                 : m == BMMAC_II ? "Restart the Pi as a Mac II / Quadra?"
 		                 : "Restart the Pi as a Mac Plus?"))
 			continue;
 		emu_sync_disks();
@@ -542,7 +549,7 @@ static void network_menu(void)
 static const char *speed_text(int long_form)
 {
 	static char text[96];
-	if (emu_machine() == BMMAC_II)
+	if (emu_machine() != BMMAC_PLUS)
 		snprintf(text, sizeof text, long_form
 		         ? "keeps up (%d%% of its frames), CPU at full speed"
 		         : "Keeping up at %d%%; CPU at full speed.", bmmac_speed_percent());
@@ -598,7 +605,7 @@ void bmmac_menu(void)
 		int n = emu_menu_items(items, EMU_ITEMS), chosen, leave = FALSE;
 		const struct osd_item common[] = {
 			{"", NULL, OSD_ITEM_LABEL, -1},
-			{"Machine", emu_machine() == BMMAC_II ? "Mac II and Quadra" : "Mac Plus",
+			{"Machine", machine_short[emu_machine()],
 			 OSD_ITEM_SUBMENU, M_MACHINE},
 			{"Video", NULL, OSD_ITEM_SUBMENU, M_VIDEO},
 			{"Sound", NULL, OSD_ITEM_SUBMENU, M_SOUND},
