@@ -632,12 +632,14 @@ const struct bmmac_rom *bmmac_rom_default(int machine)
 		/* The Quadra 650's and 800's ROM is Basilisk II's best. */
 		if (roms[i].checksum == 0xf1acad13)
 			return &roms[i];
-		/* SheepShaver's: a New World Mac OS ROM file (checksum 0) before
-		   an Old World 4 MB ROM, and a tested one (the newest) first. */
-		if (machine == BMMAC_PPC && best != NULL
-		    && ((best->checksum != 0 && roms[i].checksum == 0)
-		        || (roms[i].checksum == 0 && roms[i].preferred > best->preferred)))
-			best = &roms[i];
+		/* SheepShaver's: a New World Mac OS ROM file (smaller than an Old
+		   World ROM's 4 MB) before an Old World ROM, and a tested one (the
+		   newest) first, whichever order the files are in. */
+		if (machine == BMMAC_PPC && best != NULL) {
+			int nw = roms[i].size < PPC_ROM_SIZE, best_nw = best->size < PPC_ROM_SIZE;
+			if ((nw && !best_nw) || (nw && best_nw && roms[i].preferred > best->preferred))
+				best = &roms[i];
+		}
 		if (best == NULL)
 			best = &roms[i];
 	}
