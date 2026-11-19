@@ -2,11 +2,13 @@ BMMacintosh - bare metal 68k Macintosh emulator for the Raspberry Pi
 ====================================================================
 
 Copy everything here to the root of a FAT32 SD card and boot a Raspberry
-Pi from it, with a USB keyboard and mouse connected. There are two Macs,
-each a kernel of its own:
+Pi from it, with a USB keyboard and mouse connected. There are three
+Macs, each a kernel of its own:
 
   Mac II and Quadra   Basilisk II, a 68040: System 7 to Mac OS 8.1.
                       A Pi 5, 500, 4 or 400; they start as this one.
+  Power Mac           SheepShaver, a PowerPC: Mac OS 7.5.5 to 9.0.4.
+                      A Pi 5 or 500 only.
   Mac Plus            umac, a 68000: the System software of its time.
                       Every Pi (the only one on a Pi 3, Zero 2 W, 2 or
                       Zero).
@@ -17,14 +19,15 @@ ROMs: Apple's aren't free, so none are included. Put your own in the roms
 folder: ROM files, or MAME's zipped sets as they are (roms/ROMS.txt says
 which). Without one the Mac says so.
 
-Disks: put your disk images in the disks folder, then F12, Hard Disks
-(Mac II) or Disk (Mac Plus), and Restart the Mac. The Mac writes to them
-in place. On the Mac II, Insert a Floppy Disk and Insert a CD-ROM work
-while it runs, and the shared folder is a disk on its desktop, SD Card.
+Disks: put your disk images in the disks folder (or on a USB stick),
+then F12, Hard Disks (Mac II and Power Mac) or Disk (Mac Plus), and
+Restart the Mac. The Mac writes to them in place. On the Mac II and Power
+Mac, Insert a Floppy Disk and Insert a CD-ROM work while it runs, and the
+shared folder is a disk on its desktop, SD Card.
 Hold Shift while Mac OS starts to start it without extensions.
 
   F12          BMMacintosh's menu      Alt              Command
-  Windows key  Option                  Ctrl             Control (Mac II)
+  Windows key  Option                  Ctrl             Control (not Plus)
 
 Gamepads move the mouse: stick or D-pad to move, A to click, X Space,
 Y Return, Home (or Select+Start) for the menu.

@@ -115,7 +115,7 @@ then
     fi
 fi
 
-# The PC tests (tools/hostsim: both Macs, with the ROMs in BMMAC_ROMS).
+# The PC tests (tools/hostsim: the three Macs, with the ROMs in BMMAC_ROMS).
 if [ "$SKIP_TESTS" -eq 0 ]
 then
     echo "=============================================================="

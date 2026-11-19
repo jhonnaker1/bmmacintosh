@@ -1,7 +1,7 @@
 /*
- * fswrap.c - file system fixes for KEGS on Circle's FatFs.
+ * fswrap.c - file system fixes for Circle's FatFs.
  *
- * FatFs cannot stat() the root directory of a volume, so KEGS's file
+ * FatFs cannot stat() the root directory of a volume, so the file
  * browser would think "/" doesn't exist and refuse to go up to it. The
  * kernel is linked with --wrap=stat, so every call to stat() comes here
  * first; the root (and ".") are reported as directories, everything else

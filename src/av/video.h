@@ -4,9 +4,9 @@
 // The Pi 4 and Pi 5 display: Circle's framebuffer driver (CBcmFrameBuffer), which
 // asks the VideoCore firmware for a framebuffer through the mailbox
 // property interface. The firmware puts it on the screen; BMMacintosh scales
-// the Apple II's picture into it.
+// the Mac's picture into it.
 //
-// The picture comes from KEGS as RGB565 (BMA800XL's, from atari800, is
+// The picture comes from the Mac as RGB565 (BMA800XL's, from atari800, is
 // 8-bit indexed with a palette; this is its code, changed for that). Sharp
 // pixels (the default) use a 16-bit framebuffer the size of the display. Smooth scaling and the CRT shader (src/av/scaler.h) need
 // a 32-bit one; it is at most 1080 lines high (720 with curvature and

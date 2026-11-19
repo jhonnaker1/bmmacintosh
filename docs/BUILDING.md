@@ -202,7 +202,7 @@ with `tools/gen_webui_assets.py` whenever an asset changes.
 | `src/vchiqsound*`            | Sound through the VideoCore (from BMC64)    |
 | `src/options.*`              | `cmdline.txt` options                       |
 | `src/host.h`                 | Interface between kernel and emulator       |
-| `src/port/bmmac.h`           | What the two Macs' front ends and the shared one offer each other |
+| `src/port/bmmac.h`           | What the Macs' front ends and the shared one offer each other |
 | `src/port/frontend.c`        | The frame loop: display, pacing, sound, keyboard, mouse and gamepads, web UI requests |
 | `src/port/keymap.c`          | USB HID usages to the Mac's key codes      |
 | `src/port/menu.c`, `osd.c`   | The menu and its on-screen display          |
@@ -211,6 +211,7 @@ with `tools/gen_webui_assets.py` whenever an asset changes.
 | `src/port/roms.c`            | Finding the Mac ROMs, in MAME's zips too    |
 | `src/port/ii/`               | Basilisk II's front end: memory and the frame loop (`main_ii.cpp`), video, sound, disks, prefs, clocks, the menu's items, ExtFS, `sysdeps.h` |
 | `src/port/ii/basilisk.mk`    | Which Basilisk II sources are built         |
+| `src/port/ppc/`              | SheepShaver's front end: memory and the frame loop (`main_ppc.cpp`), video, prefs, `kpx/cpu/` (the interpreter's memory and frame count), `sheepshaver.mk`; disks, ExtFS, sound, the menu's items and the network are `src/port/ii/`'s, built with `BMMAC_PPC_BUILD` |
 | `src/port/plus/`             | umac's front end (`main_plus.c`) and `umac.mk` |
 | `src/port/fswrap.c`          | `stat()` of the SD card's root, which FatFs can't do (`--wrap=stat`) |
 | `src/port/posix_extra.c`     | rmdir(), utime(), access(), creat() for newlib (ExtFS) |

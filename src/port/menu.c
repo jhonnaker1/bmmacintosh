@@ -3,7 +3,7 @@
  *
  * F12, a gamepad's Home button or Select+Start open it. At the top, the
  * emulated Mac's own items (disks, ROM, memory: emu_menu_items() in
- * src/port/ii/ or src/port/plus/); then switching to the other Mac
+ * src/port/ii/ or src/port/plus/); then switching to another Mac
  * (machine.c), BMMacintosh's settings (video, sound, network, kept in
  * bmmac.cfg), and power.
  *

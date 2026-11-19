@@ -2,7 +2,7 @@
 // kernel.h
 //
 // The Circle kernel for BMMacintosh: brings up the hardware, then runs the
-// KEGS emulator on core 1 while core 0 services USB. The Pi Zero has
+// emulator (Basilisk II, SheepShaver or umac) on core 1 while core 0 services USB. The Pi Zero has
 // one core: the emulator runs on it, and USB is serviced by a task between
 // frames (as in BMC64's Pi Zero build).
 //
@@ -111,6 +111,9 @@ public:
   int PadState(int pad);
   int PadAxis(int pad, int axis);
   int MouseRead(int *dx, int *dy, int *buttons);
+  unsigned USBStick(int n) const {
+    return n >= 0 && n < HOST_USB_STICKS ? m_USBStick[n] : 0;
+  }
   int GpioJoystick(int port);
   double Time(void);
   void Reboot(void);
@@ -132,6 +135,7 @@ private:
   static void MouseStatusHandler(unsigned nButtons, int nDisplacementX,
                                  int nDisplacementY, int nWheelMove);
   static void MouseRemovedHandler(CDevice *pDevice, void *pContext);
+  static void USBStickRemovedHandler(CDevice *pDevice, void *pContext);
 
 public:
   // Core 0, task level: sets up USB devices that were plugged in.
@@ -141,12 +145,8 @@ private:
   void SetupUSBKeyboards(void);
   void SetupUSBGamePads(void);
   void SetupUSBMouse(void);
+  void SetupUSBSticks(void);
   void SetupGPIOJoysticks(void);
-#if RASPPI >= 5
-  void CheckPowerButton(void);
-  bool m_bPowerButtonSeenUp = false;
-  unsigned m_nPowerButtonDown = 0;   // clock ticks it went down, or 0
-#endif
   void PushKeyEvent(int usage, int pressed);
   void UpdateMergedKeys(void);
 
@@ -165,14 +165,13 @@ private:
   CLogDevice mLog;
   CTimer mTimer;
   CLogger mLogger;
-#if RASPPI <= 4
   // Without an operating system asking for more, the firmware leaves the
-  // ARM at its lowest clock (600 MHz on a Pi 3 B+, not 1.4 GHz); this
-  // sets the highest when it is constructed, before the SD card and Wi-Fi
-  // take their clocks. The firmware still slows it down if the chip gets
-  // too hot. (Update() is never called: it would slow it down at 60 C.)
+  // ARM at its lowest clock (600 MHz on a Pi 3 B+, not 1.4 GHz; 1.5 GHz,
+  // not 2.4, on a Pi 5); this sets the highest when it is constructed,
+  // before the SD card and Wi-Fi take their clocks. The firmware still
+  // slows it down if the chip gets too hot. (Update() is never called: it
+  // would slow it down at 60 C.)
   CCPUThrottle mCPUThrottle;
-#endif
   CScheduler mScheduler;
   CGPIOManager mGPIOManager;
 #if RASPPI <= 3
@@ -180,6 +179,11 @@ private:
 #endif
   CEMMCDevice mEMMC;
   FATFS mFileSystem;
+  // The USB sticks (umsd1..umsd3) as the FatFs volumes "USB:", "USB2:" and
+  // "USB3:". Mounted once at boot without reading them; FatFs reads a stick
+  // in when it is first used, and again after it has been pulled out or
+  // swapped (Circle's addon/fatfs/diskio.cpp drops a removed device).
+  FATFS mUSBFileSystem[HOST_USB_STICKS];
   CUSBHCIDevice mUSBHCI;
   CConsole mConsole;
 #ifdef ARM_ALLOW_MULTI_CORE
@@ -230,6 +234,13 @@ private:
   volatile int m_MouseDx;
   volatile int m_MouseDy;
   volatile int m_MouseButtons;
+
+  // The USB sticks plugged in, set on core 0 and read by the emulator on
+  // core 1 (host_usb_stick()): each one's number, or 0 when there is none.
+  CDevice *m_pUSBStick[HOST_USB_STICKS];
+  unsigned m_USBStickIndex[HOST_USB_STICKS];
+  volatile unsigned m_USBStick[HOST_USB_STICKS];
+  unsigned m_USBSticks;  // sticks plugged in since boot
 
   bool m_bGPIOJoysticks;
   CGPIOPin *m_pJoyPins[2][5];

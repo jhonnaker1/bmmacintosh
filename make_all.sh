@@ -53,8 +53,8 @@ case "$RASPI" in
     1) KERNELS="macplus.img" ;;
     2) KERNELS="macplus7.img" ;;
     3) KERNELS="macplus8-32.img" ;;
-    4) KERNELS="macplus8-rpi4.img macii8-rpi4.img" ;;
-    5) KERNELS="macplus_2712.img macii_2712.img" ;;
+    4) KERNELS="macplus8-rpi4.img macii8-rpi4.img macppc8-rpi4.img" ;;
+    5) KERNELS="macplus_2712.img macii_2712.img macppc_2712.img" ;;
 esac
 if [ "$RASPI" -ge 4 ]
 then

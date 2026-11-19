@@ -167,15 +167,14 @@ printf '600 shot desktop.ppm\n610 key 0x45 1\n612 key 0x45 0\n640 shot menu.ppm\
     BMMAC_CMDLINE="root=." ../../build/macii_sim
 ```
 
-The commands are listed at the top of `tools/hostsim/host_sim.c`. Among
-them, `netprobe dhcp` and `netprobe dns` ask the Mac II's network for an
-address and look example.com up as the Mac would, and log the answers
-(after the Mac has started, around frame 900, with `BMMAC_IP` set).
-
 saves the Mac's screen at frame 600, presses F12 (USB HID usage 0x45) and
 saves the menu at frame 640. The commands are listed at the top of
 `tools/hostsim/host_sim.c`, and `tools/hostsim/run_tests.sh` has many
-examples.
+examples. Among them, `netprobe dhcp` and `netprobe dns` ask the Mac II's
+network for an address and look example.com up as the Mac would, and log
+the answers (after the Mac has started, around frame 900, with `BMMAC_IP`
+set); `usb 1 1` plugs in USB stick 1 (the test's `usb/` folder) and
+`usb 1 0` pulls it out.
 
 Useful settings, as environment variables:
 
@@ -184,6 +183,8 @@ Useful settings, as environment variables:
 | `BMMAC_CMDLINE`             | Options as in `cmdline.txt` (`root=.` is the SD card)      |
 | `BMMAC_REFRESH`             | The display's refresh rate (default 60)                    |
 | `BMMAC_SIM_RATE`            | The sound output's rate (48000 for a Pi 4 or 5's HDMI)     |
+| `BMMAC_SIM_CHUNK`           | The sound output takes this many frames at a time, padding a short block with silence (1536, as the Pi 5's HDMI); `audio` then counts the short blocks |
+| `BMMAC_USB`                 | This many USB sticks plugged in from the start (the folders `usb/`, `usb2/`, `usb3/`) |
 | `BMMAC_IP`                  | Pretend the network is up with this address (from frame 100) |
 | `BMMAC_DISPLAY`             | The display's size the Mac is told (`1920x1200`; 1280x720 otherwise) |
 | `BMMAC_WIFI`                | Pretend Wi-Fi is running, with a few networks to choose from |

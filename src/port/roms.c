@@ -426,8 +426,11 @@ static uint32_t found_rom(const char *shown, const char *item, const uint8_t *bu
 {
 	char path[200];
 	if (want == NULL) {
-		snprintf(path, sizeof path, "%s:%s", shown, item);
-		add_rom(path, buf, size);
+		/* A path too long to keep couldn't be loaded again: left out. */
+		if (snprintf(path, sizeof path, "%s:%s", shown, item) >= (int) sizeof path)
+			printf("BMMacintosh: ROM %s:%s: the name is too long, left out\n", shown, item);
+		else
+			add_rom(path, buf, size);
 		return 0;
 	}
 	if (strcmp(want, item) != 0)
@@ -558,7 +561,11 @@ static void scan_dir(const char *dir, int only_rom)
 		if (e->d_name[0] == '.')
 			continue;
 		bmmac_card_path(path, sizeof path, dir, e->d_name);
-		snprintf(shown, sizeof shown, "%s%s%s", dir, dir[0] ? "/" : "", e->d_name);
+		if (snprintf(shown, sizeof shown, "%s%s%s", dir, dir[0] ? "/" : "", e->d_name)
+		    >= (int) sizeof shown) {
+			printf("BMMacintosh: ROM %s/%s: the name is too long, left out\n", dir, e->d_name);
+			continue;
+		}
 		if (only_rom && !has_ext(e->d_name, ".rom"))
 			continue;
 		if (stat(path, &st) != 0 || !S_ISREG(st.st_mode))

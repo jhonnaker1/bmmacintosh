@@ -5,7 +5,7 @@
 | Document | What it covers |
 |---|---|
 | [INSTALLATION.md](INSTALLATION.md) | What you need, preparing the SD card, first start |
-| [USER_GUIDE.md](USER_GUIDE.md) | The two Macs, ROMs and disks, the menu, keyboard and mouse, display and timing, networking and the web UI, all `cmdline.txt` options, logging, troubleshooting |
+| [USER_GUIDE.md](USER_GUIDE.md) | The three Macs, ROMs and disks, the menu, keyboard and mouse, display and timing, networking and the web UI, all `cmdline.txt` options, logging, troubleshooting |
 | [ROMS.txt](ROMS.txt) | The Mac ROMs and System software BMMacintosh needs (yours) |
 | [PI4.md](PI4.md) | The Raspberry Pi 4 B and Pi 400 |
 | [PI5.md](PI5.md) | The Raspberry Pi 5, Pi 500 and Pi 500+ |

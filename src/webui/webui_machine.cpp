@@ -4,8 +4,8 @@
 // Modified for BMA800XL: the Atari 800XL's name, settings file and the
 // file types atari800 can start, in place of BMC64's machines.
 // Changed for BMCoco, BMApple2 and BMAtariST, and for BMMacintosh: the Mac
-// running (the Mac Plus or the Mac II, each a kernel of its own), whose
-// disk images can be started.
+// running (the Mac Plus, the Mac II or the Power Mac, each a kernel of its
+// own), whose disk images can be started.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -32,7 +32,9 @@
 // restarts the Mac).
 extern "C" const char *bmmac_machine_text(void);
 extern "C" const char *const *emu_run_types(void);
-// The Mac Plus's settings are in bmmac.cfg; the Mac II's in macii.prefs.
+// The Mac Plus's settings are in bmmac.cfg, the Mac II's in macii.prefs
+// and the Power Mac's in macppc.prefs (emu_machine(): BMMAC_PLUS 0,
+// BMMAC_II 1, BMMAC_PPC 2, src/port/bmmac.h).
 extern "C" int emu_machine(void);
 
 namespace {
@@ -46,7 +48,8 @@ char Lower(char c) {
 }  // namespace
 
 const WebUiMachine *WebUiMachineGet(void) {
-  kMachine.settings = emu_machine() == 1 ? "/macii.prefs" : "/bmmac.cfg";
+  int machine = emu_machine();
+  kMachine.settings = machine == 2 ? "/macppc.prefs" : machine == 1 ? "/macii.prefs" : "/bmmac.cfg";
   kMachine.run_types = emu_run_types();
   return &kMachine;
 }

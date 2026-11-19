@@ -28,7 +28,7 @@
 #include <string.h>
 #include <vector>
 
-// BMMacintosh's frame buffer (src/port/platform.c): KEGS's window, all shown.
+// A test source the size of KEGS's window (BMApple2's), all shown.
 static const int SrcW = 704, SrcH = 462;
 static const int ViewX = 0, ViewY = 0, ViewW = 704, ViewH = 462;
 

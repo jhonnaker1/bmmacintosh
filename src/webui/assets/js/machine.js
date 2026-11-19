@@ -34,7 +34,7 @@ export const machineShortName = () => current.name.split(",")[0] || "machine";
 // Name for display.
 export const machineDisplayName = () => current.name || "machine";
 
-// The emulator's settings file, "/hatari.cfg".
+// The emulator's settings file ("/macii.prefs", "/macppc.prefs" or "/bmmac.cfg").
 export const mainSettingsFile = () => current.settings;
 
 // Whether Autostart accepts files with this extension.

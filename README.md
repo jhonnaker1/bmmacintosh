@@ -30,7 +30,7 @@ Each Mac is a kernel of its own, with its own emulator:
 
 The menu's **Machine** item switches between them: it changes the
 `kernel=` lines of `config.txt` and restarts the Pi, as BMC64 switched
-between its machines. Both use the same SD card: the ROMs, the disks, the
+between its machines. They use the same SD card: the ROMs, the disks, the
 settings and the web UI.
 
 BMMacintosh is based on BMAtariST, which is based on BMApple2, BMCoco,
@@ -151,7 +151,7 @@ src/fbl.cpp                Display (dispmanx layer, optional CRT shader), from B
 src/vchiqsound*.cpp        Sound over HDMI or the headphone jack, from BMC64
 src/network.cpp, webui/    Ethernet / Wi-Fi and the web UI, from BMC64
 src/host.h                 What the kernel offers the emulator
-src/port/bmmac.h           What the two Macs and their shared front end offer each other
+src/port/bmmac.h           What the Macs and their shared front end offer each other
 src/port/frontend.c        The frame loop: display, pacing, sound, input, requests
 src/port/keymap.c          USB keys to the Mac's key codes
 src/port/menu.c, osd.c     The menu
@@ -159,13 +159,14 @@ src/port/machine.c         Switching Macs: config.txt's kernel= lines
 src/port/roms.c            The ROMs on the card, MAME's zips too
 src/port/ii/               Basilisk II's front end: memory, video, sound, disks, ExtFS, Ethernet
 src/slirp_sockets.cpp      The Mac II network's sockets, on Circle's
+src/port/ppc/              SheepShaver's front end: memory, video, prefs (the rest is src/port/ii/'s)
 src/port/plus/             umac's front end
-third_party/macemu         Basilisk II (submodule, kanjitalk755's macemu)
+third_party/macemu         Basilisk II and SheepShaver (submodule, kanjitalk755's macemu)
 third_party/umac           umac and Musashi (submodule)
 third_party/zlib           zlib, for MAME's zips (submodule)
 third_party/circle-stdlib  Circle and newlib (submodule)
 src/av/, src/v3d/, src/kms Shared Pi 4/5 video, GPU and display drivers
-tools/hostsim              Runs both Macs on a PC for testing
+tools/hostsim              Runs the three Macs on a PC for testing
 tools/mac_media.py         ROM files and disk images from MAME's
 ```
 

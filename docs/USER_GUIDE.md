@@ -75,13 +75,15 @@ Not supported:
 
 | File or folder   | What it is                                                  |
 |------------------|-------------------------------------------------------------|
-| `macii*.img`, `macplus*.img` | The kernels (above)                            |
+| `macii*.img`, `macppc*.img`, `macplus*.img` | The kernels (above)             |
 | `bootcode.bin`, `start.elf`, `fixup.dat`, `start4.elf`, `fixup4.dat`, `armstub8-rpi4.bin`, `*.dtb`, `overlays/` | Raspberry Pi firmware |
 | `config.txt`     | Raspberry Pi firmware settings: the kernel each board starts, the display mode |
 | `cmdline.txt`    | BMMacintosh's options (see Options)                         |
 | `bmmac.cfg`      | Settings changed in BMMacintosh's menu, and the Mac Plus's (written by BMMacintosh) |
 | `macii.prefs`    | The Mac II's settings, in Basilisk II's own format: the ROM, the disks, the memory, the screen (written by BMMacintosh) |
 | `macii.xpram`    | The Mac II's parameter RAM (the Control Panel's settings) |
+| `macppc.prefs`   | The Power Mac's settings, in SheepShaver's own format (written by BMMacintosh) |
+| `macppc.nvram`   | The Power Mac's parameter RAM and NVRAM |
 | `macplus.pram`   | The Mac Plus's: its clock chip's parameter RAM, and how far its clock was set from the Pi's |
 | `roms/`          | Your Mac ROMs (see ROMs)                                    |
 | `disks/`         | For your disk images (any folder works)                     |
@@ -131,6 +133,14 @@ it. A DiskCopy image's checksum is kept right as the Mac writes to it. *No Disk*
 takes it out. When the Mac ejects its disk the drive stays empty until
 the Mac restarts.
 
+**USB sticks.** Disk images can be on a USB stick (FAT32 or FAT16), up to
+three at once. While a stick is plugged in, the menu's file browser has a
+**[ Drives ]** entry, and `..` above a drive's top folder goes to it: a
+page with the SD card and each stick (*USB stick 1 (USB:)*, *2 (USB2:)*,
+*3 (USB3:)*). A disk on a stick is used from it, as from the card, so
+leave the stick in while the Mac uses the disk: pulling it out is like
+pulling a disk out of a running Mac. The web UI shows the sticks too.
+
 **Extensions.** Hold Shift while Mac OS starts to start it without its
 extensions, as on a real Mac: the way past an extension that stops it.
 Mac OS 8.1 from MAME's `macos81.chd`, for one, stops at its A/ROSE
@@ -152,7 +162,7 @@ and the Mac stops while it's open. The arrow keys (or the D-pad) move,
 | Model         | Mac II: the Quadra 900 (a 68040, System 7.5 and later) or the Mac IIci (a 68030, for System 7.0 to 7.1.3); the Mac restarts |
 | Memory        | The Mac's memory (it restarts) |
 | Restart the Mac | Switching the Mac off and on |
-| Machine       | The Mac Plus or the Mac II (the Pi restarts) |
+| Machine       | The Mac Plus, the Mac II or the Power Mac (the Pi restarts) |
 | Video         | Screen size, frame lock, CRT effect, smooth scaling, disk activity |
 | Sound         | Volume, HDMI or the headphone jack |
 | Network       | Ethernet or Wi-Fi, the web UI |
@@ -240,15 +250,15 @@ The web UI has:
   Down** (the Pi halts; switch it off, then on again to restart; a Pi 400
   switches itself off, and its power key starts it again), and **Disable
   Web UI** until the next reboot.
-- **Files**: browse the SD card; upload (or drag and drop) files into a
-  folder, download, rename, delete, and create folders. Clicking a disk
+- **Files**: browse the SD card and USB sticks (a button for each drive,
+  while a stick is plugged in; reload the page after plugging one in);
+  upload (or drag and drop) files into a folder, download, rename, delete, and create folders. Clicking a disk
   image **starts it**: the Mac starts again from it (on the Mac II a
   floppy image goes in the floppy drive, a CD-ROM image in the CD-ROM
   drive, a hard disk image becomes the first hard disk). `cmdline.txt`,
-  `config.txt`, `bmmac.cfg`, `macii.prefs` and `wpa_supplicant.conf` can
-  be **edited**
-  in the browser; changes take effect after a reboot, and the previous
-  version is kept as `.bak`.
+  `config.txt`, `bmmac.cfg`, `macii.prefs`, `macppc.prefs` and
+  `wpa_supplicant.conf` can be **edited** in the browser; changes take
+  effect after a reboot, and the previous version is kept as `.bak`.
 
 Uploads can't overwrite `cmdline.txt`, `config.txt` or `wpa_supplicant.conf`
 (edit them instead), or anything in `firmware`. Everything else, including
@@ -286,7 +296,7 @@ up" once the Pi has its address). To leave it off, add `nonet true` to
 
 The network also sets the Pi's clock, so files saved on the card get the
 right date and time. Set `timezone` to your offset from UTC in minutes, for
-example `timezone=600` for UTC+10. Both Macs' clocks are the Pi's, in that
+example `timezone=600` for UTC+10. The Macs' clocks are the Pi's, in that
 time zone; setting the Mac's clock (the Control Panel, the Alarm Clock)
 moves it from there, and the Mac Plus keeps that in `macplus.pram`.
 
@@ -317,6 +327,8 @@ which the menu changes.
 | `sound_test`        | `0`, `1`                     | `0`      | The first 8 seconds of the Mac's sound are a 440 Hz tone: a test of the sound output |
 | `plus_rom`, `plus_disk`, `plus_ram` | a path; KB (128 to 4096) | | The Mac Plus's ROM, disk and memory (the menu sets them) |
 | `ii_max_instructions` | number                     | `2000000` | The most instructions the Mac II runs in a frame |
+| `gpio_joysticks`    | `0`, `1`                     | `0`      | Atari-style joysticks on the GPIO header (BMA800XL's wiring) move through BMMacintosh's menu |
+| `ppc_max_blocks`    | number (50000 or more)       | `4000000` | The most blocks of instructions the Power Mac's PowerPC runs in a frame |
 | `enable_logging`    | `off`, `uart`, `file`        | `off`    | Where the log goes (see Logging) |
 | `netprobe`          | `0`, `1`                     | `0`      | Mac II: tests its network once the Pi's is up (an address, then a name looked up) and logs the answers |
 | `network`           | `off`, `ethernet`, `wifi`    | `off`    | Networking (see Networking and the web UI) |
@@ -328,10 +340,10 @@ which the menu changes.
 ## Logging
 
 BMMacintosh logs what it is doing, which helps when something doesn't work:
-the version, the display and sound set up, the ROMs found and the one
-used, the disk images opened, devices coming and going, network status,
-and the emulators' own messages. Choose
-where it goes with `enable_logging` in `cmdline.txt`:
+the version, the CPU's clock speed, the display and sound set up, the ROMs
+found and the one used, the disk images opened, devices coming and going,
+network status, and the emulators' own messages. Choose where it goes with
+`enable_logging` in `cmdline.txt`:
 
 - **Off** (the default, also when `enable_logging` isn't set): no log.
 - **UART**: the serial port, GPIO14 TX and GPIO15 RX at 115200 baud

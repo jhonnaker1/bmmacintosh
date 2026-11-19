@@ -1,17 +1,19 @@
 #
 # Makefile for the BMMacintosh kernel images.
 #
-# BMMacintosh is two kernels for each board, one for each Mac: EMU=ii is
-# the Mac II and Quadra (Basilisk II, the Pi 4 and 5), EMU=plus the Mac
-# Plus (umac, every Pi). Their names are Circle's for the board with
-# "kernel" made "macii" or "macplus": macplus.img (Pi Zero), macplus7.img
-# (Pi 2), macplus8-32.img (Pi 3), macplus8-rpi4.img and macii8-rpi4.img
-# (Pi 4, 64-bit), macplus_2712.img and macii_2712.img (Pi 5, 64-bit). The
-# menu switches between them (src/port/machine.c).
+# BMMacintosh is a kernel for each Mac on each board: EMU=ii is the Mac II
+# and Quadra (Basilisk II, the Pi 4 and 5), EMU=ppc the Power Mac
+# (SheepShaver, the Pi 5; its Pi 4 kernel is for QEMU tests), EMU=plus the
+# Mac Plus (umac, every Pi). Their names are Circle's for the board with
+# "kernel" made "macii", "macppc" or "macplus": macplus.img (Pi Zero),
+# macplus7.img (Pi 2), macplus8-32.img (Pi 3), macplus8-rpi4.img,
+# macii8-rpi4.img and macppc8-rpi4.img (Pi 4, 64-bit), macplus_2712.img,
+# macii_2712.img and macppc_2712.img (Pi 5, 64-bit). The menu switches
+# between them (src/port/machine.c).
 #
 # Run ./make_all.sh once first; it builds circle-stdlib and then this.
 # After that "make" rebuilds the kernels for the board circle-stdlib is
-# built for, "make EMU=plus" or "make EMU=ii" one of them.
+# built for, "make EMU=plus", "make EMU=ii" or "make EMU=ppc" one of them.
 # ./build_sdcard.sh stages everything for the SD card in build/sdcard.
 #
 
@@ -137,7 +139,8 @@ OBJS += src/kms/pi4/dlist.o src/kms/pi4/hvs.o src/kms/pi4/display.o \
         src/kms/pi4/phy.o src/kms/pi4/modeset.o
 else
 OBJS += src/kms/pi5/dlist.o src/kms/pi5/hvs.o src/kms/pi5/display.o \
-        src/kms/pi5/phy.o src/kms/pi5/modeset.o
+        src/kms/pi5/phy.o src/kms/pi5/modeset.o \
+        src/pi45/board.o src/pi45/fan.o
 endif
 # Smooth scaling and the CRT shader are drawn by the ARM: -O3 lets GCC turn
 # their per-pixel loops into NEON code (tools/pi4scaler tests the same).
@@ -395,7 +398,8 @@ EXTRACLEAN += $(OBJS) src/*.o src/port/*.o src/port/*.d src/port/ii/*.o src/port
               src/*.d src/webui/*.d src/sdcard/*.d \
               src/av/*.o src/av/*.d src/kms/common/*.o src/kms/common/*.d \
               src/kms/pi4/*.o src/kms/pi4/*.d \
-              src/kms/pi5/*.o src/kms/pi5/*.d src/v3d/*.o src/v3d/*.d $(EMU_LIB)
+              src/kms/pi5/*.o src/kms/pi5/*.d src/v3d/*.o src/v3d/*.d \
+              src/pi45/*.o src/pi45/*.d $(EMU_LIB)
 .PHONY: distclean
 
 distclean: clean

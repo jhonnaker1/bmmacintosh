@@ -1,5 +1,6 @@
 // Overlay text editor for the device's config files (cmdline.txt,
-// config.txt, hatari.cfg, bmmac.cfg, wpa_supplicant.conf), which the device decides:
+// config.txt, bmmac.cfg, macii.prefs, macppc.prefs, wpa_supplicant.conf),
+// which the device decides:
 // the file list marks them "edit".
 
 import { $, normPath } from "./util.js";

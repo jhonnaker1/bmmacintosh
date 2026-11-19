@@ -1,12 +1,14 @@
 /*
- * bmmac.h - shared declarations for BMMacintosh's two emulators.
+ * bmmac.h - shared declarations for BMMacintosh's three emulators.
  *
- * BMMacintosh is two kernels: the Mac II and Quadra (Basilisk II, the
- * front end in src/port/ii/, the Pi 4 and 5 only) and the Mac Plus (umac,
- * src/port/plus/, every Pi). They share everything else in src/port/:
- * the frame loop's display, pacing and sound (frontend.c), the keyboard
- * (keymap.c), the menu (menu.c and osd.c), switching between the two
- * (machine.c) and finding the user's ROMs (roms.c).
+ * BMMacintosh is three kernels: the Mac II and Quadra (Basilisk II, the
+ * front end in src/port/ii/, the Pi 4 and 5 only), the Power Mac
+ * (SheepShaver, src/port/ppc/ with much of src/port/ii/, the Pi 5 only)
+ * and the Mac Plus (umac, src/port/plus/, every Pi). They share everything
+ * else in src/port/: the frame loop's display, pacing and sound
+ * (frontend.c), the keyboard (keymap.c), the menu (menu.c and osd.c),
+ * switching between them (machine.c) and finding the user's ROMs
+ * (roms.c).
  *
  * The emulator's side is the emu_*() functions below, which each front end
  * has: emu_main() runs the Mac and calls bmmac_frame() once a frame.

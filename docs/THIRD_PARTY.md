@@ -6,7 +6,7 @@ The original copyright, license, and attribution notices supplied with these com
 
 ## Basilisk II
 
-BMMacintosh's Mac II kernels incorporate [Basilisk II](https://basilisk.cebix.net/), the 68k Macintosh emulator by Christian Bauer and others, under the GNU General Public License version 2 or (at your option) any later version. The version used is [kanjitalk755's macemu](https://github.com/kanjitalk755/macemu), the maintained one, at commit `f532be3d` (the `third_party/macemu` submodule), its `BasiliskII/src`.
+BMMacintosh's Mac II kernels incorporate [Basilisk II](https://basilisk.cebix.net/), the 68k Macintosh emulator by Christian Bauer and others, under the GNU General Public License version 2 or (at your option) any later version. The version used is [kanjitalk755's macemu](https://github.com/kanjitalk755/macemu), the maintained one, at commit `0407cbd5` (the `third_party/macemu` submodule), its `BasiliskII/src`.
 
 Its 68040 CPU core (`uae_cpu_2021`, the one Basilisk II's build uses on ARM) is ARAnyM's, from UAE by Bernd Schmidt and others, with its floating point emulation, under the same licence. BMMacintosh's front end (`src/port/ii/`) follows Basilisk II's Unix front end (`src/Unix/`), and `src/port/ii/extfs_ii.cpp` is its `extfs_unix.cpp` changed for the SD card.
 
@@ -79,6 +79,12 @@ BMC64-derived files retain their original license and attribution notices. For f
 BMMacintosh includes the Raspberry Pi boot firmware (`bootcode.bin`, `start.elf`, `fixup.dat`, and for the Raspberry Pi 4 `start4.elf` and `fixup4.dat`) and the Raspberry Pi 4 and Pi 5 device trees from the [Raspberry Pi firmware repository](https://github.com/raspberrypi/firmware).
 
 Their licences are next to them, in [`sdcard/firmware/`](../sdcard/firmware/) and on the SD card: `LICENCE.broadcom` for the firmware and `COPYING.linux` for the device trees. See the [Raspberry Pi firmware repository](https://github.com/raspberrypi/firmware/tree/master/boot) for more.
+
+The Raspberry Pi 0 to 3 firmware is from firmware release 1.20260907. The
+Raspberry Pi 4 and 5 firmware, device trees and overlay are the ones Circle
+51.1.1 uses (see its `boot/Makefile`). The device trees and overlay are
+unmodified builds of the device tree sources in the
+[Raspberry Pi kernel](https://github.com/raspberrypi/linux) (Linux 6.12).
 
 ## crt-pi
 

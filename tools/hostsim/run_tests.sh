@@ -486,6 +486,16 @@ check_cfg plusswitch config.txt "^kernel=macii_2712\.img" "config.txt starts the
 check_cfg plusswitch config.txt "^kernel=macii8-rpi4\.img" "and on the Pi 4"
 check_log plusswitch "reboot requested" "and the Pi reboots"
 
+echo "A disk on a USB stick, from the menu's drives page"
+# Menu, Disk (the first item): the browser opens in disks/; up to
+# "[ Drives ]", then the second drive (the stick) and its first file.
+mkdir -p "$OUT/plususb/disks" "$OUT/plususb/usb"
+cp "$OUT/plusdisk.dsk" "$OUT/plususb/disks/card.dsk"
+cp "$OUT/plusdisk.dsk" "$OUT/plususb/usb/stick.dsk"
+BMMAC_USB=1 run "$PLUS" plususb 60 "" "$(key $F12 900)$(key $ENTER 920)$(key $UP 940)$(key $ENTER 950)$(downs 1 960)$(key $ENTER 980)$(key $ENTER 1000)1300 quit\n"
+check_cfg plususb bmmac.cfg "^plus_disk=usb/stick\.dsk" "the stick's disk chosen"
+check_log plususb "disk usb/stick\.dsk" "the Mac restarted with it"
+
 echo "Web UI: a disk image"
 run "$PLUS" plusstart 60 "" "900 run $OUT/plusdisk.dsk\n1000 quit\n"
 check_cfg plusstart bmmac.cfg "^plus_disk=.*plusdisk\.dsk" "the disk is the Mac's"

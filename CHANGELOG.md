@@ -1,5 +1,48 @@
 # Changelog
 
+## 0.3.0 – 2026-11-19
+
+From BMA800XL 1.4.3 to 1.4.6:
+
+- The Pi 5 runs at its full clock speed, 2.4 GHz, not the 1.5 GHz the
+  firmware leaves it at (the Pi Zero to 4 already ran at theirs): the
+  Power Mac's PowerPC ran up to 31 million blocks a second in Mac OS 9 on
+  a Pi 5, from 24 (from BMAmiga, which had it from BMNeXT; BMA800XL's
+  `fast=true` does the same). The log gives the clock
+- The Pi 5's fan (the Active Cooler or a case fan) is driven from the
+  chip's temperature, with Raspberry Pi OS's steps; the power button's
+  code moved to `src/pi45/board.cpp` with it
+- The Pi 5's HDMI sound clock is set also when the display's mode is kept
+  (the display had no 60.15 Hz mode): the sound could be off pitch
+- USB sticks: up to three, FAT32 or FAT16, as `USB:`, `USB2:` and `USB3:`.
+  The menu's file browser has a **[ Drives ]** page for them, and the web
+  UI shows them. Disk images can be used from them
+- Web UI: uploads about five times faster, no more "upload truncated"
+  (Circle's TCP receive window, `src/patches/`), idle connections kept
+  open until a request arrives, and the file list sorted by name, size or
+  date
+- CI: the PC tests run alongside the boards, each board on its own
+  runner (the display, scaler and memory tests too)
+
+Also:
+
+- Basilisk II and SheepShaver updated to kanjitalk755's macemu of
+  2026-11-19 (`0407cbd5`): ExtFS fixes for Mac OS 9 (Navigation Services'
+  Open and Save dialogs and the File Manager on the *SD Card* shared
+  folder crashed or failed), and SheepShaver's PowerPC gains the `stfiwx`
+  instruction (an illegal instruction before)
+- The web UI on the Power Mac: its settings file is `macppc.prefs` (it
+  named `bmmac.cfg`), which can be edited in the browser as `macii.prefs`
+  can
+- The card's README.txt, the user guide and other documents describe the
+  three Macs (some still had two), with the Power Mac's files on the card,
+  the `ppc_max_blocks` and `gpio_joysticks` options, and the simulator's
+  USB sticks and sound blocks; comments from the family's other emulators
+  corrected
+- A ROM whose name is too long to keep (over 199 characters with its
+  folder) is left out, with a line in the log, rather than listed and then
+  not found
+
 ## 0.2.0 – 2026-11-12
 
 - The Power Mac: a third Mac, SheepShaver's PowerPC Macintosh, for the
