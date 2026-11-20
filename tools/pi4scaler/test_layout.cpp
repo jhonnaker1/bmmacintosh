@@ -127,6 +127,27 @@ int main(void) {
           "on the display, centred, its shape kept");
   }
 
+  // The CRT shader's size (issue #2: an 800x600 Mac on a 1920x1200
+  // display, drawn at 600 lines, lost its scanlines).
+  {
+    unsigned w, h;
+    bool sharp;
+    CrtDrawSize(1600, 1200, 600, 1080, &w, &h, &sharp);
+    Check(w == 1440 && h == 1080 && !sharp, "crt 800x600 at 1200 lines",
+          "drawn at 1080 lines, enlarged smoothly, not 600");
+    CrtDrawSize(1440, 1080, 600, 1080, &w, &h, &sharp);
+    Check(w == 1440 && h == 1080 && sharp, "crt 800x600 at 1080 lines", "drawn as shown");
+    CrtDrawSize(2880, 2160, 600, 1080, &w, &h, &sharp);
+    Check(w == 1440 && h == 1080 && sharp, "crt 800x600 at 2160 lines",
+          "drawn at half, enlarged sharply");
+    CrtDrawSize(1600, 1200, 480, 1080, &w, &h, &sharp);
+    Check(w == 800 && h == 600 && sharp, "crt 640x480 at 1200 lines",
+          "drawn at half (1.25 lines a line, enough), enlarged sharply");
+    CrtDrawSize(1600, 1200, 384, 1080, &w, &h, &sharp);
+    Check(w == 800 && h == 600 && sharp, "crt 512x384 at 1200 lines",
+          "drawn at half (1.56 lines a line), enlarged sharply");
+  }
+
   printf("\n%s\n", g_failed ? "Layout tests FAILED." : "All layout tests passed.");
   return g_failed ? 1 : 0;
 }

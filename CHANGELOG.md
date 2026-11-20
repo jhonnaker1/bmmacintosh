@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.3.1 – 2026-11-20
+
+- The CRT effect on a display taller than 1080 lines (issue #2): the Pi 4
+  and 5 drew it at a whole fraction of the size shown, which the display
+  enlarged, and an 800x600 Mac on a 1920x1200 display was drawn at
+  exactly 600 lines, one to each of the Mac's, where the scanlines vanish.
+  With less than 1.2 lines drawn to a line of the Mac's, it is now drawn
+  at the most lines the ARM draws (1080; 720 curved and smooth) and the
+  display enlarges it smoothly (`CrtDrawSize()`, `src/av/layout.h`, with
+  tests in `tools/pi4scaler`). Tested on a Pi 4 at 1080p with the same
+  case at 640x480 (curved, smooth, `scale=0.889`): drawn at 960x720, 60
+  frames a second
+
 ## 0.3.0 – 2026-11-19
 
 From BMA800XL 1.4.3 to 1.4.6:

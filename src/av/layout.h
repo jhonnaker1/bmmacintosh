@@ -73,4 +73,23 @@ inline PictureLayout LayOutPicture(unsigned display_w, unsigned display_h,
   return l;
 }
 
+// The size the CRT shader draws a VIEW_H line view at, for a picture shown
+// DEST_W x DEST_H, drawing no more than MAX_H lines: the size shown, or a
+// whole fraction of it the display enlarges sharply (*SHARP). But the
+// scanlines need more lines drawn than the view has (at as many, an 800x600
+// Mac on a 1200-line display, they vanish): with less than 1.2 drawn to a
+// line of the view, it is drawn at MAX_H lines, and enlarged smoothly.
+inline void CrtDrawSize(unsigned dest_w, unsigned dest_h, unsigned view_h, unsigned max_h,
+                        unsigned *w, unsigned *h, bool *sharp) {
+  unsigned divide = (dest_h + max_h - 1) / max_h;
+  *w = dest_w / divide;
+  *h = dest_h / divide;
+  *sharp = true;
+  if (divide > 1 && *h * 5 < view_h * 6) {
+    *w = dest_w * max_h / dest_h;
+    *h = max_h;
+    *sharp = false;
+  }
+}
+
 #endif

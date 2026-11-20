@@ -645,7 +645,9 @@ void Pi4Video::Blank(void) {
 // multiples of the view's height, smooth and CRT filling the height (times
 // SCALE). Sharp and smooth hand the HVS the view as it is; the CRT shader
 // draws at the size shown, or a whole fraction of it no more than 1080
-// lines (720 curved and smooth), which the HVS enlarges sharply.
+// lines (720 curved and smooth), which the HVS enlarges sharply, or at
+// 1080 lines enlarged smoothly where the fraction would have too few lines
+// for the scanlines (CrtDrawSize(), src/av/layout.h).
 void Pi4Video::SetViewKms(int x, int y, int w, int h, double aspect,
                           double scale) {
   // The driver's buffers may be new: all of them is drawn again.
@@ -675,10 +677,9 @@ void Pi4Video::SetViewKms(int x, int y, int w, int h, double aspect,
     // The ARM can't draw curved and smooth at more than 720 lines; the GPU
     // can.
     unsigned max_height = m_bCurvature && m_bSmooth && m_pGpu == 0 ? 720 : 1080;
-    unsigned divide = (dest_h + max_height - 1) / max_height;
-    src_w = dest_w / divide;
-    src_h = dest_h / divide;
-    nearest = true;
+    // src/av/layout.h: a whole fraction of the size shown, or the most
+    // lines where that would lose the scanlines.
+    CrtDrawSize(dest_w, dest_h, (unsigned)h, max_height, &src_w, &src_h, &nearest);
     m_nKmsSrcW = src_w;
     m_nKmsSrcH = src_h;
     // While the GPU draws, the ARM's scaler isn't needed (it is set up
